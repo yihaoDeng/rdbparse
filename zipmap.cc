@@ -50,7 +50,7 @@ ZipmapParser::ZipmapParser(void *buf)
 
 Status ZipmapParser::GetResult(std::map<std::string, std::string> *result) {
   bool ret = true, end = false;
-  auto valid = [=] { return ret && !end; };
+  auto valid = [&] { return ret && !end; };
   offset_ += 1;
   while (valid()) {
     std::string key, value;
@@ -60,5 +60,5 @@ Status ZipmapParser::GetResult(std::map<std::string, std::string> *result) {
     }
     result->insert({key, value});
   }
-  return valid() ? Status::OK() : Status::Corruption("Parse error");
+  return ret ? Status::OK() : Status::Corruption("Parse error");
 }

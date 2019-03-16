@@ -12,15 +12,16 @@ using namespace slash;
 
 enum ValueType {
   kRdbString = 0, 
-  kRdbList,
-  kRdbSet, 
-  kRdbZset, 
-  kRdbHash,
-  kRdbZipMap,    
-  kRdbListZiplist,     
-  kRdbIntset,
-  kRdbZsetZiplist,       
-  kRdbHashZiplist
+  kRdbList = 1,
+  kRdbSet = 2, 
+  kRdbZset= 3, 
+  kRdbHash = 4,
+  kRdbHashZipMap = 9,    
+  kRdbListZiplist = 10,     
+  kRdbIntset = 11,
+  kRdbZsetZiplist = 12,       
+  kRdbHashZiplist = 13,
+  kRdbListQuicklist = 14
 };
 struct ParsedResult {
   ValueType type;

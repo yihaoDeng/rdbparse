@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <iostream>
 #include <list>
 #include <set>
 #include "slash/include/slash_string.h"
@@ -64,7 +65,7 @@ Status RdbParser::Init() {
   char buf[16];
   Slice result;
   s = ReadAndChecksum(9, &result, buf);  
-  if (!s.ok() || kMagicString != result.ToString()) {
+  if (!s.ok() || kMagicString != result.ToString().substr(0, kMagicString.size())) {
     return Status::Incomplete("unsupport rdb head magic");
   }
   result.remove_prefix(kMagicString.size());  
@@ -191,8 +192,8 @@ Status RdbParser::LoadZsetOrHashZiplist(std::map<std::string, std::string> *resu
   std::string buf;
   Status s = LoadString(&buf);
   if (!s.ok()) { return s; }
-  ZiplistParser zipmap_parser((void *)buf.c_str());
-  return zipmap_parser.GetZsetOrHashResult(result);
+  ZiplistParser ziplist_parser((void *)buf.c_str());
+  return ziplist_parser.GetZsetOrHashResult(result);
 }
 Status RdbParser::LoadZipmap(std::map<std::string, std::string> *result) {
   std::string buf;
@@ -226,8 +227,8 @@ Status RdbParser::LoadHashOrZset(std::map<std::string, std::string> *result) {
   return i == field_size ? Status::OK() : Status::Corruption("Parse error");
 }
 Status RdbParser::LoadString(std::string *result) {
-  bool is_encoded;
-  uint32_t len; 
+  uint32_t len;
+  bool is_encoded = false;
   Status s = LoadFieldLen(&len, &is_encoded);
   if (!s.ok()) { return s; } 
   if (is_encoded) {
@@ -292,7 +293,7 @@ Status RdbParser::LoadEntryValue(uint8_t type) {
       s = LoadListZiplist(&(result_->list_value));
       if (!s.ok()) { return s; }  
       break;
-    case kRdbZipMap:
+    case kRdbHashZipMap:
       s = LoadZipmap(&(result_->map_value));
       if (!s.ok()) { return s; }
       break;
@@ -368,7 +369,7 @@ Status RdbParser::Next() {
 std::string RdbParser::GetTypeName(ValueType type) {
   static std::unordered_map<ValueType, std::string, std::hash<int>> type_map{
     { kRdbString, "string"}, { kRdbList, "list"},
-      { kRdbSet, "set"}, { kRdbZipMap,"hash"},
+      { kRdbSet, "set"}, { kRdbHashZipMap,"hash"},
       { kRdbZsetZiplist, "zset"}, { kRdbHashZiplist, "hash"},
       { kRdbListZiplist,"list"}, { kRdbIntset, "set"},
       { kRdbHash,"hash"}, { kRdbZsetZiplist,"zset"}
@@ -377,5 +378,25 @@ std::string RdbParser::GetTypeName(ValueType type) {
   return it != type_map.end() ? it->second : ""; 
 }
 int main() {
+  std::string rdb_path = "rdb/dump2.8.rdb";
+  RdbParser parse(rdb_path); 
+  Status s = parse.Init();
+  if (!s.ok()) {
+    std::cout << s.ToString() << std::endl;
+    return 1;
+  }
+  while (parse.Valid()) {
+    s = parse.Next(); 
+    if (s.ok() && parse.Valid()) {
+         
+    } else if (s.ok()) {
+      std::cout << "end file" << std::endl;
+      break;
+    } else {
+      std::cout << "parse error: " << s.ToString()  << std::endl;
+      break;
+    } 
+  }
+  
   return 1;
 }

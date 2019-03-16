@@ -1,6 +1,6 @@
 CXX=g++
 LDFLAGS= -lpthread -lrt
-CXXFLAGS= -O2 -std=c++11 -fno-builtin-memcmp -msse -msse4.2
+CXXFLAGS= -g -O0 -std=c++11 -fno-builtin-memcmp -msse -msse4.2
 
 .PHONY: clean libslash
 
@@ -22,7 +22,7 @@ $(OBJS): %.o : %.cc
 
 clean:
 	find . -name "*.[oda]*" -exec rm -f {} \;
-	rm -rf ./rdb 
+	#rm -rf ./rdb 
 
 libslash:
 	cd .. && $(MAKE) static_lib
