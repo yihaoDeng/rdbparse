@@ -24,7 +24,8 @@ enum ValueType {
   kRdbListQuicklist = 14
 };
 struct ParsedResult {
-  ValueType type;
+  ParsedResult(): expire_time(-1) {}
+  std::string type;
   uint8_t db_num;
   int expire_time;
   std::string key; 

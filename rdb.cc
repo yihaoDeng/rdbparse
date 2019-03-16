@@ -175,6 +175,8 @@ Status RdbParser::LoadEncLzf(std::string *result) {
   return ret ? Status::OK() : Status::Corruption("Parse error"); 
 }
 void RdbParser::ResetResult() {
+  result_->db_num = 0;
+  result_->expire_time = -1;
   result_->key.clear(); 
   result_->kv_value.clear(); 
   result_->set_value.clear();
@@ -348,19 +350,20 @@ Status RdbParser::Next() {
       valid_ = false;
       return Status::OK(); 
     }
+    if (type == kRdbSelectDb) {
+      s = LoadEntryDBNum(&(result_->db_num));
+      if (!s.ok()) { return s; } 
+      continue;
+    } 
 
     if (type == kRdbExpireMs || type == kRdbExpireSec) {
       s = LoadExpiretime(type, &(result_->expire_time));
       if (!s.ok()) { return s; }
       continue;
     }  
-    if (type == kRdbSelectDb) {
-      s = LoadEntryDBNum(&(result_->db_num));
-      if (!s.ok()) { return s; } 
-      continue;
-    } 
     s = LoadEntryKey(&(result_->key));        
     if (!s.ok()) { return s; } 
+    result_->type = GetTypeName(ValueType(type));
     s = LoadEntryValue(type);
     return s;
   }
