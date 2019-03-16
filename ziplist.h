@@ -30,10 +30,8 @@ struct Ziplist;
 
 class ZiplistParser {
   public:
-    ZiplistParser(void *buf) {
-      ziplist_ = reinterpret_cast<Ziplist *>(buf); 
-      offset_ = 0; 
-    }
+    ZiplistParser(void *buf);
+   
     struct Ziplist {
       uint32_t bytes;
       uint32_t ztail;
@@ -44,10 +42,11 @@ class ZiplistParser {
       bool GetIntVal(size_t *offset, int64_t *v);
       bool GetStrVal(size_t *offset, std::string *v);
     };
+
     Status GetListResult(std::list<std::string> *result);
     Status GetZsetOrHashResult(std::map<std::string, std::string> *result); 
   private:
-    Ziplist *ziplist_; 
+    Ziplist *handle_; 
     size_t offset_;
 };
 

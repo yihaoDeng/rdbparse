@@ -14,13 +14,15 @@ bool ZiplistParser::Ziplist::GetVal(size_t *offset, std::string *str, bool *end)
   p += (*p < kZiplistBegin) ? 1 : 5;
   *offset = p - entrys;
 
-  uint8_t enc = static_cast<uint8_t>(*p);  
-  enc &= kZipListStrMask;
+  uint8_t enc = static_cast<uint8_t>(*p) & kZipListStrMask; 
   if (enc == kStrEnc6B || enc == kStrEnc14B || enc == kStrEnc32B) {
     return GetStrVal(offset, str);    
   }    
+
   int64_t val; 
-  if (!GetIntVal(offset, &val)) { return false; }
+  if (!GetIntVal(offset, &val)) { 
+    return false; 
+  }
 
   char buf[16];
   int len = ll2string(buf, sizeof(buf), val);
@@ -89,13 +91,19 @@ bool ZiplistParser::Ziplist::GetIntVal(size_t *offset, int64_t *val) {
   *offset = p - entrys; 
   return true;
 }
+ZiplistParser::ZiplistParser(void *buf)
+  : handle_(reinterpret_cast<Ziplist *>(buf)), 
+    offset_(0) {
+  }
 Status ZiplistParser::GetListResult(std::list<std::string> *result) {
   bool ret = true, end = false;
   auto valid = [=] { return ret && !end; };
   while (valid()) {
     std::string buf;
-    ret = ziplist_->GetVal(&offset_, &buf, &end);
-    if (!valid()) { break; }
+    ret = handle_->GetVal(&offset_, &buf, &end);
+    if (!valid()) { 
+      break; 
+    }
     result->push_back(buf);
   }
   return valid() ? Status::OK() : Status::Corruption("Parse error");
@@ -106,9 +114,11 @@ Status ZiplistParser::GetZsetOrHashResult(std::map<std::string, std::string> *re
   auto valid = [=] { return ret && !end; };
   while (valid()) {
     std::string key, value;
-    ret = ziplist_->GetVal(&offset_, &key, &end) 
-        && ziplist_->GetVal(&offset_, &value, &end);   
-    if (!valid()) { break;}
+    ret = handle_->GetVal(&offset_, &key, &end) 
+      && handle_->GetVal(&offset_, &value, &end);   
+    if (!valid()) { 
+      break;
+    }
     result->insert({key, value}); 
   } 
   return valid() ? Status::OK() : Status::Corruption("Parse error"); 

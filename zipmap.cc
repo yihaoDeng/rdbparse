@@ -24,7 +24,9 @@ bool ZipmapParser::Zipmap::GetKV(size_t *offset, std::string *key, std::string *
 }
 bool ZipmapParser::Zipmap::IsEnd(size_t *offset) {
   char *p = entrys + *offset;    
-  if (static_cast<uint8_t>(*p) == kZipmapEnd) { return true; }
+  if (static_cast<uint8_t>(*p) == kZipmapEnd) { 
+    return true; 
+  }
   return false;
 }
 uint32_t ZipmapParser::Zipmap::GetEntryLenSize(char *entry) {
@@ -43,7 +45,7 @@ uint32_t ZipmapParser::Zipmap::GetEntryStrLen(uint8_t len_size, char *entry) {
 }
 ZipmapParser::ZipmapParser(void *buf)
   : handle_(reinterpret_cast<ZipmapParser::Zipmap *>(buf)), 
-    offset_(0){
+    offset_(0) {
 }
 
 Status ZipmapParser::GetResult(std::map<std::string, std::string> *result) {
@@ -53,7 +55,9 @@ Status ZipmapParser::GetResult(std::map<std::string, std::string> *result) {
   while (valid()) {
     std::string key, value;
     ret = handle_->GetKV(&offset_, &key, &value, &end);
-    if (!valid()) { break; }
+    if (!valid()) { 
+      break; 
+    }
     result->insert({key, value});
   }
   return valid() ? Status::OK() : Status::Corruption("Parse error");
