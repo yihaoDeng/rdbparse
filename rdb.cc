@@ -175,7 +175,6 @@ Status RdbParser::LoadEncLzf(std::string *result) {
   return ret ? Status::OK() : Status::Corruption("Parse error"); 
 }
 void RdbParser::ResetResult() {
-  result_->db_num = 0;
   result_->expire_time = -1;
   result_->key.clear(); 
   result_->kv_value.clear(); 
@@ -391,9 +390,14 @@ int main() {
   while (parse.Valid()) {
     s = parse.Next(); 
     if (s.ok() && parse.Valid()) {
-         
+      ParsedResult *value = parse.Value();         
+      if (value->type == "string") {
+        printf("db_num:%d, expire_time: %d, type: %s, key: %s, value: %s\n", 
+            value->db_num, value->expire_time, value->type.c_str(), value->key.c_str(), value->kv_value.c_str());
+      }  
+      parse.ResetResult();
     } else if (s.ok()) {
-      std::cout << "end file" << std::endl;
+      std::cout << "reach end file" << std::endl;
       break;
     } else {
       std::cout << "parse error: " << s.ToString()  << std::endl;
