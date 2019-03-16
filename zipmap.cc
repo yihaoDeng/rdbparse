@@ -4,7 +4,7 @@
 using namespace slash;
 
 bool ZipmapParser::Zipmap::GetValue(bool skip_free, size_t *offset, std::string *value) {
-  uint8_t skip_step = skip_free ? 0 : 1;  
+  uint8_t skip_step = skip_free ? 1 : 0;  
   char *p = entrys + *offset;    
   uint32_t len_size = GetEntryLenSize(p);
   uint32_t str_len = GetEntryStrLen(len_size, p);
@@ -30,8 +30,14 @@ bool ZipmapParser::Zipmap::IsEnd(size_t *offset) {
   return false;
 }
 uint32_t ZipmapParser::Zipmap::GetEntryLenSize(char *entry) {
+  uint32_t size = 0; 
   int8_t flag = static_cast<int8_t>(entry[0]);
-  return flag < kZipmapBiglen ? 1 : 5; 
+  if (flag < kZipmapBiglen) {
+    size = 1;
+  } else if (flag == kZipmapBiglen) {
+    size = 5; 
+  }
+  return size;
 }
 uint32_t ZipmapParser::Zipmap::GetEntryStrLen(uint8_t len_size, char *entry) {
   uint32_t str_len = 0;

@@ -19,12 +19,12 @@ enum ZiplistStrEncType {
 };
 
 enum ZiplistIntEncType {
-  kIntEnc16 = 0, 
-  kIntEnc32 = 1 << 4,
-  kIntEnc64 = 1 << 5, 
-  kIntEnc24 = (1 << 4) | (1 << 5),
-  kIntEnc8 = 0x3e, 
-  kIntOther = 0x30
+  kIntEnc16 = 0xc0, 
+  kIntEnc32 = 0xd0,
+  kIntEnc64 = 0xe0, 
+  kIntEnc24 = 0xf0,
+  kIntEnc8 = 0xfe, 
+  kIntOther = 0xf0
 };
 struct Ziplist;
 

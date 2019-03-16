@@ -57,10 +57,10 @@ bool ZiplistParser::Ziplist::GetStrVal(size_t *offset, std::string *val) {
 }
 bool ZiplistParser::Ziplist::GetIntVal(size_t *offset, int64_t *val) {
   char *p = entrys + *offset; 
-  if ((*p & kZipListStrMask) ^ kZipListStrMask) {
-    return false;
-  } 
-  uint8_t enc = static_cast<uint8_t>(*p) & ~(kZipListStrMask); 
+  //if ((*p & kZipListStrMask) ^ kZipListStrMask) {
+  //  return false;
+  //} 
+  uint8_t enc = static_cast<uint8_t>(*p); 
   p++;
   if (enc == kIntEnc16) {
     int16_t v16;
@@ -68,6 +68,12 @@ bool ZiplistParser::Ziplist::GetIntVal(size_t *offset, int64_t *val) {
     memrev16ifbe(&v16);
     *val = static_cast<int64_t>(v16); 
     p += sizeof(int16_t);
+  } else if (enc == kIntEnc32) {
+    int32_t v32;
+    memcpy(&v32, p, sizeof(int32_t));
+    memrev32ifbe(&v32);
+    *val = v32; 
+    p += sizeof(int32_t);
   } else if (enc == kIntEnc64) {
     int64_t v64;
     memcpy(&v64, p, sizeof(int64_t));

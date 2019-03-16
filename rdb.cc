@@ -81,13 +81,14 @@ ParsedResult* RdbParser::Value() {
 }
 Status RdbParser::ReadAndChecksum(uint64_t len, Slice *result, char *scratch) {
   Status s = sequence_file_->Read(len, result, scratch); 
-  if (s.ok() && version_ >= 5) {
+  if (!s.ok()) {
+    return s;
+  }
+  if (version_ >= 5) {
     const unsigned char *p1 = (const unsigned char *)scratch; 
     check_sum_ = crc64(check_sum_, p1, len); 
-  } else {
-    return Status::Incomplete("Incomplete data");
   }
-  return s; 
+  return s;
 }
 Status RdbParser::LoadExpiretime(uint8_t type, int *expire_time) {
   char buf[8];
@@ -290,6 +291,7 @@ Status RdbParser::LoadEntryValue(uint8_t type) {
     case kRdbIntset:
       s = LoadIntset(&(result_->set_value));               
       if (!s.ok()) { return s; }              
+      break;
     case kRdbListZiplist: 
       s = LoadListZiplist(&(result_->list_value));
       if (!s.ok()) { return s; }  
@@ -313,7 +315,8 @@ Status RdbParser::LoadEntryValue(uint8_t type) {
       s = LoadHashOrZset(&(result_->map_value));
       break;
     default: 
-      return Status::Corruption("Invalid value type");
+      //return Status::Corruption("Invalid value type");
+      return Status::OK(); // skip unrecognised value type
   }
   return Status::OK();
 }
@@ -380,7 +383,7 @@ std::string RdbParser::GetTypeName(ValueType type) {
   return it != type_map.end() ? it->second : ""; 
 }
 int main() {
-  std::string rdb_path = "rdb/dump2.8.rdb";
+  std::string rdb_path = "rdb/dump2.4.rdb";
   RdbParser parse(rdb_path); 
   Status s = parse.Init();
   if (!s.ok()) {
@@ -394,6 +397,20 @@ int main() {
       if (value->type == "string") {
         printf("db_num:%d, expire_time: %d, type: %s, key: %s, value: %s\n", 
             value->db_num, value->expire_time, value->type.c_str(), value->key.c_str(), value->kv_value.c_str());
+      } else if (value->type == "hash") {
+        printf("db_num:%d, expire_time: %d, type: %s, key: %s, value:[", 
+            value->db_num, value->expire_time, value->type.c_str(), value->key.c_str());
+        auto &map_value = value->map_value;
+        auto it = map_value.begin();
+        while(it != map_value.end()) {
+          printf("%s -> %s", it->first.c_str(), it->second.c_str()); 
+          it++; 
+          if (it != map_value.end()) {
+            printf(", ");
+          }
+        }
+        printf("]\n");
+
       }  
       parse.ResetResult();
     } else if (s.ok()) {
@@ -404,6 +421,6 @@ int main() {
       break;
     } 
   }
-  
+
   return 1;
 }
