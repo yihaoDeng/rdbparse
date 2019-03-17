@@ -93,7 +93,7 @@ bool ZiplistParser::Ziplist::GetIntVal(size_t *offset, int64_t *val) {
   return true;
 }
 Status ZiplistParser::GetListResult(std::list<std::string> *result) {
-  bool ret, end = false;
+  bool ret = true, end = false;
   auto valid = [=] { return ret && !end; };
   std::string buf;
   while (valid()) {

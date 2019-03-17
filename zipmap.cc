@@ -49,15 +49,14 @@ ZipmapParser::ZipmapParser(void *buf)
 }
 
 Status ZipmapParser::GetResult(std::map<std::string, std::string> *result) {
-  bool ret, end = false;
+  bool ret = true, end = false;
+  auto valid = [=] { return ret && !end; };
   std::string key, value;
   offset_ += 1;
-  while (ret = handle_->GetKV(&offset_, &key, &value, &end)) {
-    if (!end) {
-      result->insert({key, value});
-    } else {
-      break;
-    }
+  while (valid()) {
+    ret = handle_->GetKV(&offset_, &key, &value, &end);
+    if (!valid()) { break; }
+    result->insert({key, value});
   }
-  return ret && end ? Status::OK() : Status::Corruption("Parse error");
+  return valid() ? Status::OK() : Status::Corruption("Parse error");
 }
