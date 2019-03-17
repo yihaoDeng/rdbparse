@@ -24,9 +24,7 @@ bool ZipmapParser::Zipmap::GetKV(size_t *offset, std::string *key, std::string *
 }
 bool ZipmapParser::Zipmap::IsEnd(size_t *offset) {
   char *p = entrys + *offset;    
-  if (static_cast<uint8_t>(*p) == kZipmapEnd) {
-      return true;
-  }
+  if (static_cast<uint8_t>(*p) == kZipmapEnd) { return true; }
   return false;
 }
 uint32_t ZipmapParser::Zipmap::GetEntryLenSize(char *entry) {
@@ -51,9 +49,9 @@ ZipmapParser::ZipmapParser(void *buf)
 Status ZipmapParser::GetResult(std::map<std::string, std::string> *result) {
   bool ret = true, end = false;
   auto valid = [=] { return ret && !end; };
-  std::string key, value;
   offset_ += 1;
   while (valid()) {
+    std::string key, value;
     ret = handle_->GetKV(&offset_, &key, &value, &end);
     if (!valid()) { break; }
     result->insert({key, value});

@@ -108,6 +108,7 @@ class RdbParser {
     ParsedResult *result_;
     RdbParser(const RdbParser&);
     struct Arena;
+    bool valid_;
     Arena *arena_;
     void operator=(const RdbParser&);
 };

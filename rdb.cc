@@ -50,7 +50,7 @@ struct RdbParser::Arena {
 
 RdbParser::RdbParser(const std::string &path):
   path_(path), version_(kMagicString.size()), 
-  result_(new ParsedResult) {
+  result_(new ParsedResult), valid_(true) {
   }
 
 RdbParser::~RdbParser() {
@@ -75,11 +75,8 @@ Status RdbParser::Init() {
   version_ = static_cast<int>(version);
   return Status::OK();
 }
-bool RdbParser::Valid() {
-  return false;
-}
-ParsedResult* Value() {
-  return nullptr;
+ParsedResult* RdbParser::Value() {
+  return result_;
 }
 Status RdbParser::ReadAndChecksum(uint64_t len, Slice *result, char *scratch) {
   Status s = sequence_file_->Read(len, result, scratch); 
@@ -168,7 +165,7 @@ Status RdbParser::LoadEncLzf(std::string *result) {
   }
   Slice compress_slice; 
   bool ret = ReadAndChecksum(compress_len, &compress_slice, compress_buf).ok() 
-    && 0 != DecompressLzf(compress_buf, compress_len, raw_buf, raw_len);
+           && (0 != DecompressLzf(compress_buf, compress_len, raw_buf, raw_len));
   if (ret) {
     result->assign(raw_buf, raw_len);
   }
@@ -333,6 +330,9 @@ Status RdbParser::LoadIntset(std::set<std::string> *result) {
   } 
   return i == int_set->length ? Status::OK() : Status::Corruption("Parse error");
 }
+bool RdbParser::Valid() {
+  return valid_;
+}
 Status RdbParser::Next() {
   // RdbEntryType type;
   // 1. load expire time
@@ -344,6 +344,7 @@ Status RdbParser::Next() {
     Status s = LoadEntryType(&type);
     if (!s.ok()) { return s; }
     if (type == kRdbEof) {
+      valid_ = false;
       return Status::OK(); 
     }
 

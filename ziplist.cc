@@ -29,9 +29,7 @@ bool ZiplistParser::Ziplist::GetVal(size_t *offset, std::string *str, bool *end)
 }
 bool ZiplistParser::Ziplist::GetStrVal(size_t *offset, std::string *val) {
   char *p = entrys + *offset;
-  uint8_t enc = static_cast<uint8_t>(*p);
-  enc &= kZipListStrMask;  
-  uint8_t skip = 0;
+  uint8_t skip = 0, enc = static_cast<uint8_t>(*p) & kZipListStrMask;
   uint32_t length = 0;
   if (enc == kStrEnc6B) {
     skip = 1;
@@ -48,8 +46,7 @@ bool ZiplistParser::Ziplist::GetStrVal(size_t *offset, std::string *val) {
       | (static_cast<uint32_t>(p[3]) << 8)
       | (static_cast<uint32_t>(p[4]));
   }
-  p += skip;  
-  p += length;
+  p += (skip + length);  
   val->assign(p, length);   
   *offset = p - entrys; 
   return true;
@@ -95,8 +92,8 @@ bool ZiplistParser::Ziplist::GetIntVal(size_t *offset, int64_t *val) {
 Status ZiplistParser::GetListResult(std::list<std::string> *result) {
   bool ret = true, end = false;
   auto valid = [=] { return ret && !end; };
-  std::string buf;
   while (valid()) {
+    std::string buf;
     ret = ziplist_->GetVal(&offset_, &buf, &end);
     if (!valid()) { break; }
     result->push_back(buf);
@@ -107,10 +104,10 @@ Status ZiplistParser::GetListResult(std::list<std::string> *result) {
 Status ZiplistParser::GetZsetOrHashResult(std::map<std::string, std::string> *result) {
   bool ret = true, end = false;
   auto valid = [=] { return ret && !end; };
-  std::string key, value;
   while (valid()) {
+    std::string key, value;
     ret = ziplist_->GetVal(&offset_, &key, &end) 
-      && ziplist_->GetVal(&offset_, &value, &end);   
+        && ziplist_->GetVal(&offset_, &value, &end);   
     if (!valid()) { break;}
     result->insert({key, value}); 
   } 

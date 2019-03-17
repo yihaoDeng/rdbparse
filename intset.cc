@@ -13,7 +13,6 @@ Status Intset::Get(int pos, int64_t *v) {
     memcpy(&v64, (int64_t*)content + pos, sizeof(int64_t));
     memrev64ifbe(&v64);
     *v = v64;
-
   } else if (encoding == sizeof(int32_t)) {
     memcpy(&v32, (int32_t*)content + pos, sizeof(int32_t));
     memrev32ifbe(&v32);
