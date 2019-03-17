@@ -1,6 +1,7 @@
 #ifndef __ZIPLIST_H__
 #define __ZIPLIST_H__
 #include <list>
+#include <map>
 #include "slash/include/env.h" 
 
 using namespace slash;
@@ -29,7 +30,7 @@ struct Ziplist;
 
 class ZiplistParser {
   public:
-    ZiplistParser(char *buf) {
+    ZiplistParser(void *buf) {
       ziplist_ = reinterpret_cast<Ziplist *>(buf); 
       offset_ = 0; 
     }
@@ -38,12 +39,13 @@ class ZiplistParser {
       uint32_t ztail;
       uint16_t len;
       char entrys[0];
-      bool GetVal(size_t *offset, std::string *buf);
+      bool GetVal(size_t *offset, std::string *buf, bool *end);
 
       bool GetIntVal(size_t *offset, int64_t *v);
       bool GetStrVal(size_t *offset, std::string *v);
     };
-    Status Value(std::list<std::string> *result);
+    Status GetListResult(std::list<std::string> *result);
+    Status GetZsetOrHashResult(std::map<std::string, std::string> *result); 
   private:
     Ziplist *ziplist_; 
     size_t offset_;

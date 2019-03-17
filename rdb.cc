@@ -7,8 +7,46 @@
 #include "intset.h"
 #include "lzf.h"
 #include "ziplist.h"
+#include "zipmap.h"
 
 using namespace slash;
+
+struct RdbParser::Arena {
+  Arena() : buf(NULL), buf_size(0) {}
+  ~Arena() {
+    delete [] buf; 
+  }
+  void EnlargeBufferIfNeed(size_t len) {
+    if (len <= sizeof(space)) {
+      key = space;
+      key_size = len;
+      return;
+    }
+    if (len > buf_size) {
+      delete [] buf;
+      buf = new char[len];
+      buf_size = len;
+    }
+    key = buf;
+    key_size = len;  
+    return;
+  }   
+  char *AllocateBuffer(size_t len) {
+    EnlargeBufferIfNeed(len);
+    return key;
+  }
+  char *Value() const {
+    return key;
+  }
+  size_t ValueSize() const {
+    return key_size;
+  }
+  char *buf; 
+  size_t buf_size;
+  char *key;
+  size_t key_size;
+  char space[32];
+};
 
 RdbParser::RdbParser(const std::string &path):
   path_(path), version_(kMagicString.size()), 
@@ -17,28 +55,24 @@ RdbParser::RdbParser(const std::string &path):
 
 RdbParser::~RdbParser() {
   delete result_;
-};
+}
 
 Status RdbParser::Init() {
   Status s = NewSequentialFile(path_, &sequence_file_);  
-  if (!s.ok()) {
-    return s;
-  }
+  if (!s.ok()) { return s; }
+
   char buf[16];
   Slice result;
   s = ReadAndChecksum(9, &result, buf);  
-
-  if (s.ok() && memcmp(result.data(), kMagicString.c_str(), kMagicString.size())) {
+  if (!s.ok() || kMagicString != result.ToString()) {
     return Status::Incomplete("unsupport rdb head magic");
-  } else {
-    return s;
   }
   result.remove_prefix(kMagicString.size());  
-  long version = 5; 
+  long version = 0; 
   if (!string2l(result.data(), result.size(), &version)) {
     return Status::Corruption("unsupport rdb version");
   }
-  version_ = static_cast<int>(version_);
+  version_ = static_cast<int>(version);
   return Status::OK();
 }
 bool RdbParser::Valid() {
@@ -50,29 +84,29 @@ ParsedResult* Value() {
 Status RdbParser::ReadAndChecksum(uint64_t len, Slice *result, char *scratch) {
   Status s = sequence_file_->Read(len, result, scratch); 
   if (s.ok() && version_ >= 5) {
-    const unsigned char *p = reinterpret_cast<const unsigned char *>(scratch); 
-    check_sum_ = crc64(check_sum_, p, len); 
+    const unsigned char *p1 = (const unsigned char *)scratch; 
+    check_sum_ = crc64(check_sum_, p1, len); 
   } else {
     return Status::Incomplete("Incomplete data");
   }
+  return s; 
 }
 Status RdbParser::LoadExpiretime(uint8_t type, int *expire_time) {
-  Status s;
   char buf[8];
-  uint32_t t32;
-  uint64_t t64;  
+  Status s;
   Slice result;
   if (type == kRdbExpireMs) {
+    uint64_t t64;  
     s = ReadAndChecksum(8, &result, buf); 
     memcpy(&t64, buf, 8);
     *expire_time = static_cast<int>(t64/1000); 
   } else {
+    uint32_t t32;
     s = ReadAndChecksum(4, &result, buf); 
     memcpy(&t32, buf, 4);
     *expire_time = static_cast<int>(t32);
   }
-  return Status::OK();
-
+  return s; 
 }
 Status RdbParser::LoadEntryType(uint8_t *type) {
   char buf[1];
@@ -96,18 +130,19 @@ Status RdbParser::LoadEntryDBNum(uint8_t *db_num) {
 }
 Status RdbParser::LoadIntVal(uint32_t type, std::string *result) {
   char buf[8];
-  Slice result; 
+  Slice slice_buf; 
+  Status s;
   int32_t val;
   if (type == kRdbEncInt8) {
-    Status s = ReadAndChecksum(1, &result, buf);
+    s = ReadAndChecksum(1, &slice_buf, buf);
     if (!s.ok()) { return s; }
     val = static_cast<int8_t>(buf[0]);  
   } else if (type == kRdbEncInt16) {
-    Status s = ReadAndChecksum(2, &result, buf);
+    s = ReadAndChecksum(2, &slice_buf, buf);
     if (!s.ok()) { return s; }
     val = static_cast<int8_t>(buf[0]) | (static_cast<int8_t>(buf[1]) << 8);
   } else if (type == kRdbEncInt32) {
-    Status s = ReadAndChecksum(4, &result, buf);
+    s = ReadAndChecksum(4, &slice_buf, buf);
     if (!s.ok()) { return s; }
     val = static_cast<int8_t>(buf[0]) | (static_cast<int8_t>(buf[1]) << 8) 
       | (static_cast<int8_t>(buf[2]) << 16) | (static_cast<int8_t>(buf[3]) << 24);
@@ -116,37 +151,83 @@ Status RdbParser::LoadIntVal(uint32_t type, std::string *result) {
   }
   ll2string(buf, sizeof(buf), val);   
   result->assign(buf);
-  return Status::OK();
+  return s; 
 }
 
-Status RdbParser::LoadEncLzf() {
-  uint32_t compress_length, len;    
-  Status s = LoadFieldLen(&compress_length, NULL); 
+Status RdbParser::LoadEncLzf(std::string *result) {
+  uint32_t raw_len, compress_len;    
+  Status s = LoadFieldLen(&compress_len, NULL);
   if (!s.ok()) { return s; }
-  s = LoadFieldLen(&len, NULL);
+  s = LoadFieldLen(&raw_len, NULL);
   if (!s.ok()) { return s; }
 
-  char *comp_str = new char[compress_length];
-  char *str = arena_.AllocateBuffer(len);
-  if (!comp_str || !str) { return Status::Corruption("no enough memory to alloc"); }
-  Slice result; 
-  if (!ReadAndChecksum(compress_length, &result, comp_str).ok()
-      || !DecompressLzf(comp_str, compress_length, str, len)) {  
-    delete [] comp_str;
-    return Status::Corruption("load or decodelzf data failed");
+  char *compress_buf = new char[compress_len];
+  char *raw_buf = new char[raw_len]; 
+  if (!compress_buf || !raw_buf) { 
+    return Status::Corruption("no enough memory to alloc"); 
   }
-  return Status::OK();
+  Slice compress_slice; 
+  bool ret = ReadAndChecksum(compress_len, &compress_slice, compress_buf).ok() 
+    && 0 != DecompressLzf(compress_buf, compress_len, raw_buf, raw_len);
+  if (ret) {
+    result->assign(raw_buf, raw_len);
+  }
+  delete [] compress_buf;
+  delete [] raw_buf;
+  return ret ? Status::OK() : Status::Corruption("Parse error"); 
 }
-
-Status RdbParser::LoadZiplist(std::list<std::string> *value) {
-  std::string result;
-  Status s = LoadString(&result); 
+void RdbParser::ResetResult() {
+  result_->key.clear(); 
+  result_->kv_value.clear(); 
+  result_->set_value.clear();
+  result_->map_value.clear();
+  result_->list_value.clear();
+}
+Status RdbParser::LoadListZiplist(std::list<std::string> *value) {
+  std::string buf;
+  Status s = LoadString(&buf); 
   if (!s.ok()) { return s; }
-  char *buf = arena_.Value();
-  ZiplistParser ziplist_parse(result.c_str());  
-  ziplist_parse.Value(value);
+  ZiplistParser ziplist_parser((void *)(buf.c_str()));  
+  return ziplist_parser.GetListResult(value);
 }
-
+Status RdbParser::LoadZsetOrHashZiplist(std::map<std::string, std::string> *result) {
+  std::string buf;
+  Status s = LoadString(&buf);
+  if (!s.ok()) { return s; }
+  ZiplistParser zipmap_parser((void *)buf.c_str());
+  return zipmap_parser.GetZsetOrHashResult(result);
+}
+Status RdbParser::LoadZipmap(std::map<std::string, std::string> *result) {
+  std::string buf;
+  Status s = LoadString(&buf);
+  if (!s.ok()) { return s; }
+  ZipmapParser zipmap_parser((void *)(buf.c_str()));
+  return zipmap_parser.GetResult(result);
+}
+Status RdbParser::LoadListOrSet(std::list<std::string> *result) {
+  uint32_t i = 0, field_size;   
+  Status s = LoadFieldLen(&field_size, NULL);  
+  if (!s.ok()) { return s; }
+  std::string val;
+  for (; i < field_size; i++) {
+    bool ret = LoadString(&val).ok();   
+    if (!ret) { break; }
+    result->push_back(val);
+  }
+  return i == field_size ? Status::OK() : Status::Corruption("Parse error");
+} 
+Status RdbParser::LoadHashOrZset(std::map<std::string, std::string> *result) {
+  uint32_t i = 0, field_size;   
+  Status s = LoadFieldLen(&field_size, NULL);  
+  if (!s.ok()) { return s; }
+  std::string key, value;
+  for (; i < field_size; i++) {
+    bool ret = LoadString(&key).ok() && LoadString(&value).ok();
+    if (!ret) { break; }
+    result->insert({key, value});
+  }
+  return i == field_size ? Status::OK() : Status::Corruption("Parse error");
+}
 Status RdbParser::LoadString(std::string *result) {
   bool is_encoded;
   uint32_t len; 
@@ -159,15 +240,17 @@ Status RdbParser::LoadString(std::string *result) {
       case kRdbEncInt32:
         return LoadIntVal(len, result);      
       case kRdbEncLzf:   
-        return LoadEncLzf();
+        return LoadEncLzf(result);
       default:
         return Status::Corruption("");
     }  
   }
-  Slice result_slice;
-  result->resize(len); 
-  s = ReadAndChecksum(len, &result_slice, result->c_str());  
-  return Status::OK();
+  Slice buf_slice;
+  char *buf = new char[len];
+  s = ReadAndChecksum(len, &buf_slice, buf);  
+  if (s.ok()) result->assign(buf_slice.data(), buf_slice.size());
+  delete [] buf;
+  return s;
 }
 
 Status RdbParser::LoadFieldLen(uint32_t *length, bool *is_encoded) {
@@ -196,109 +279,102 @@ Status RdbParser::LoadFieldLen(uint32_t *length, bool *is_encoded) {
     len = buf[0] & 0x3f;
   }
   *length = len;
-  return Status::OK();
-
+  return s;
 }
 Status RdbParser::LoadEntryValue(uint8_t type) {
   Status s;
   switch (type) {
     case kRdbString:  
-      {
-        std::string result;
-        s = LoadString(&result); 
-        if (!s.ok()) { return s; }         
-        result_->kv_value.swap(result);
-        break; 
-      } 
+      s = LoadString(&(result_->kv_value)); 
+      if (!s.ok()) { return s; }         
+      break; 
     case kRdbIntset:
-      {
-        std::set<std::string> result;
-        s = LoadIntset(&result);               
-        if (!s.ok()) { return s; }              
-        result_->set_value.swap(result); 
-        break; 
-      }
+      s = LoadIntset(&(result_->set_value));               
+      if (!s.ok()) { return s; }              
     case kRdbListZiplist: 
-      {
-        std::list<std::string> result; 
-        s = LoadZiplist(&result);
-        if (!s.ok()) { return s; }  
-        break;
-        result_->list_value.swap(result);
-      }
-                          
-    case kRdbZipMap: break;
-        
+      s = LoadListZiplist(&(result_->list_value));
+      if (!s.ok()) { return s; }  
+      break;
+    case kRdbZipMap:
+      s = LoadZipmap(&(result_->map_value));
+      if (!s.ok()) { return s; }
+      break;
     case kRdbZsetZiplist:               
     case kRdbHashZiplist:
-                     break;
+      s = LoadZsetOrHashZiplist(&(result_->map_value));
+      if (!s.ok()) { return s; }
+      break;
     case kRdbList:
     case kRdbSet:                
-                     break;
+      s = LoadListOrSet(&(result_->list_value));
+      if (s.ok()) { return s; }
+      break;
     case kRdbHash:
     case kRdbZset:
-
-                     break;
+      s = LoadHashOrZset(&(result_->map_value));
+      break;
     default: 
-                     return Status::Corruption("Invalid value type");
-
+      return Status::Corruption("Invalid value type");
   }
   return Status::OK();
 }
 Status RdbParser::LoadIntset(std::set<std::string> *result) {
-  char buf[16];
-  Status s = LoadString();    
-  int64_t v64;
-  Intset *int_set = reinterpret_cast<Intset *>(arena_.Value()); 
-  for (size_t i = 0; i < int_set->length; i++) {
-    s = int_set->Get(i, &v64);
-    if (!s.ok()) { return s; } 
-    int size = ll2string(buf, sizeof(buf), v64); 
-    if (size <= 0) {
-      return Status::Corruption("Invalid fieild");
-    }
+  std::string value;
+  Status s = LoadString(&value);    
+  Intset *int_set = reinterpret_cast<Intset *>((void *)(value.data())); 
+  size_t i = 0;
+  for (; i < int_set->length; i++) {
+    int64_t v64;
+    char buf[16];
+    if (!int_set->Get(i, &v64).ok()) { break; }
+    int size = ll2string(buf, sizeof(buf), v64);
+    if (size <= 0) { break; } 
     result->emplace(buf, size);
   } 
-  return Status::OK();
+  return i == int_set->length ? Status::OK() : Status::Corruption("Parse error");
 }
 Status RdbParser::Next() {
   // RdbEntryType type;
   // 1. load expire time
   // 2. load db num;
-  // 3. load value
+  // 3. load key 
+  // 4. load value
+  uint8_t type;
   while (1) {
-    uint8_t type;
     Status s = LoadEntryType(&type);
     if (!s.ok()) { return s; }
+    if (type == kRdbEof) {
+      return Status::OK(); 
+    }
 
     if (type == kRdbExpireMs || type == kRdbExpireSec) {
-      int expire_time;
-      if (!LoadExpiretime(type, &expire_time).ok() 
-          || !LoadEntryType(&type).ok()) {
-        return Status::Corruption("un complete") ;
-      } else {
-        result_->expire_time = expire_time;
-      }
+      s = LoadExpiretime(type, &(result_->expire_time));
+      if (!s.ok()) { return s; }
+      continue;
     }  
     if (type == kRdbSelectDb) {
-      uint8_t db_num = 0;  
-      s = LoadEntryDBNum(&db_num);
+      s = LoadEntryDBNum(&(result_->db_num));
       if (!s.ok()) { return s; } 
-      result_->db_num = db_num;
       continue;
-    } else if (type == kRdbEof) {
-      return s;
-    }
-    std::string &entry_key; 
-    s = LoadEntryKey(entry_key);        
+    } 
+    s = LoadEntryKey(&(result_->key));        
     if (!s.ok()) { return s; } 
-    result_->key.assign(arena_.Value(), arena_.ValueSize());
-
     s = LoadEntryValue(type);
-
+    return s;
   }
 } 
 
+std::string RdbParser::GetTypeName(ValueType type) {
+  static std::unordered_map<ValueType, std::string, std::hash<int>> type_map{
+    { kRdbString, "string"}, { kRdbList, "list"},
+      { kRdbSet, "set"}, { kRdbZipMap,"hash"},
+      { kRdbZsetZiplist, "zset"}, { kRdbHashZiplist, "hash"},
+      { kRdbListZiplist,"list"}, { kRdbIntset, "set"},
+      { kRdbHash,"hash"}, { kRdbZsetZiplist,"zset"}
+  };
+  auto it = type_map.find(type);  
+  return it != type_map.end() ? it->second : ""; 
+}
 int main() {
   return 1;
 }

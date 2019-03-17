@@ -2,8 +2,9 @@
 #define _RDB_PARSER_H_
 
 #include<set>
-#include <list>
+#include<list>
 #include<map> 
+#include<unordered_map>
 #include "slash/include/env.h"
 #include "slash/include/slash_string.h"
 
@@ -24,7 +25,7 @@ enum ValueType {
 struct ParsedResult {
   ValueType type;
   uint8_t db_num;
-  int64_t expire_time;
+  int expire_time;
   std::string key; 
   std::string kv_value;
   std::set<std::string> set_value;
@@ -45,10 +46,10 @@ class RdbParser {
     RdbParser(const std::string& rdb_path); 
     ~RdbParser();
 
-    enum ZiplistDataFlag {
-      kZiplistBegin = 254,
-      kZiplistEnd = 0xff  
-    };
+    //enum ZiplistDataFlag {
+    //  kZiplistBegin = 254,
+    //  kZiplistEnd = 0xff  
+    //};
     enum RdbEntryType {
       kRdbExpireSec = 0xfd, 
       kRdbExpireMs = 0xfc,
@@ -83,53 +84,22 @@ class RdbParser {
     Status LoadExpiretime(uint8_t type, int *expire_time); 
     Status LoadEntryType(uint8_t *type);
     Status LoadEntryDBNum(uint8_t *db_num);
-    Status LoadEntryKey();     
+    Status LoadEntryKey(std::string *result);     
     Status LoadEntryValue(uint8_t type);
 
-    struct Arena {
-      Arena() : buf(NULL), buf_size(0) {}
-      ~Arena() {
-        delete [] buf; 
-      }
-      void EnlargeBufferIfNeed(size_t len) {
-        if (len <= sizeof(space)) {
-          key = space;
-          key_size = len;
-          return;
-        }
-        if (len > buf_size) {
-          delete [] buf;
-          buf = new char[len];
-          buf_size = len;
-        }
-        key = buf;
-        key_size = len;  
-        return;
-      }   
-      char *AllocateBuffer(size_t len) {
-        EnlargeBufferIfNeed(len);
-        return key;
-      }
-      char *Value() const {
-        return key;
-      }
-      size_t ValueSize() const {
-        return key_size;
-      }
-
-      char *buf; 
-      size_t buf_size;
-      char *key;
-      size_t key_size;
-      char space[32];
-    };
+    std::string GetTypeName(ValueType type);
+    void ResetResult(); 
   private: 
     Status LoadFieldLen(uint32_t *length, bool *is_encoded);
-    Status LoadIntVal(uint32_t type); 
-    Status LoadString();
-    Status LoadIntset(std::set<std::string> *value);
-    Status LoadEncLzf();
-    Status LoadZiplist(std::list<std::string> *value);
+    Status LoadIntVal(uint32_t type, std::string *result); 
+    Status LoadString(std::string *result);
+    Status LoadIntset(std::set<std::string> *result);
+    Status LoadEncLzf(std::string *result);
+    Status LoadListZiplist(std::list<std::string> *result);
+    Status LoadZsetOrHashZiplist(std::map<std::string, std::string> *result); 
+    Status LoadZipmap(std::map<std::string, std::string> *result);
+    Status LoadListOrSet(std::list<std::string> *result);
+    Status LoadHashOrZset(std::map<std::string, std::string> *result);
 
     std::string path_;
     SequentialFile *sequence_file_;  
@@ -137,7 +107,8 @@ class RdbParser {
     int version_;  
     ParsedResult *result_;
     RdbParser(const RdbParser&);
-    Arena arena_;
+    struct Arena;
+    Arena *arena_;
     void operator=(const RdbParser&);
 };
 
