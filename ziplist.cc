@@ -5,7 +5,7 @@
 
 using namespace slash;
 
-bool ZiplistParser::Ziplist::GetVal(size_t *offset, std::string *str, bool *end) {
+bool ZiplistParser::Ziplist::Get(size_t *offset, std::string *str, bool *end) {
   char *p = entrys + *offset;     
   if (static_cast<uint8_t>(*p) == kZiplistEnd) {
     *end = true;
@@ -16,11 +16,11 @@ bool ZiplistParser::Ziplist::GetVal(size_t *offset, std::string *str, bool *end)
 
   uint8_t enc = static_cast<uint8_t>(*p) & kZipListStrMask; 
   if (enc == kStrEnc6B || enc == kStrEnc14B || enc == kStrEnc32B) {
-    return GetStrVal(offset, str);    
+    return GetStr(offset, str);    
   }    
 
   int64_t val; 
-  if (!GetIntVal(offset, &val)) { 
+  if (!GetInt(offset, &val)) { 
     return false; 
   }
 
@@ -29,7 +29,7 @@ bool ZiplistParser::Ziplist::GetVal(size_t *offset, std::string *str, bool *end)
   str->assign(buf, len); 
   return true;
 }
-bool ZiplistParser::Ziplist::GetStrVal(size_t *offset, std::string *val) {
+bool ZiplistParser::Ziplist::GetStr(size_t *offset, std::string *val) {
   char *p = entrys + *offset;
   uint8_t skip = 0, enc = static_cast<uint8_t>(*p) & kZipListStrMask;
   uint32_t length = 0;
@@ -55,7 +55,7 @@ bool ZiplistParser::Ziplist::GetStrVal(size_t *offset, std::string *val) {
   *offset = p - entrys + length; 
   return true;
 }
-bool ZiplistParser::Ziplist::GetIntVal(size_t *offset, int64_t *val) {
+bool ZiplistParser::Ziplist::GetInt(size_t *offset, int64_t *val) {
   char *p = entrys + *offset; 
   uint8_t enc = static_cast<uint8_t>(*p); 
   p++;
@@ -100,12 +100,12 @@ ZiplistParser::ZiplistParser(void *buf)
   : handle_(reinterpret_cast<Ziplist *>(buf)), 
     offset_(0) {
   }
-Status ZiplistParser::GetListResult(std::list<std::string> *result) {
+Status ZiplistParser::GetList(std::list<std::string> *result) {
   bool ret = true, end = false;
   auto valid = [&] { return ret && !end; };
   while (valid()) {
     std::string buf;
-    ret = handle_->GetVal(&offset_, &buf, &end);
+    ret = handle_->Get(&offset_, &buf, &end);
     if (!valid()) { 
       break; 
     }
@@ -114,13 +114,13 @@ Status ZiplistParser::GetListResult(std::list<std::string> *result) {
   return ret ? Status::OK() : Status::Corruption("Parse error");
 }
 
-Status ZiplistParser::GetZsetOrHashResult(std::map<std::string, std::string> *result) {
+Status ZiplistParser::GetZsetOrHash(std::map<std::string, std::string> *result) {
   bool ret = true, end = false;
   auto valid = [&] { return ret && !end; };
   while (valid()) {
     std::string key, value;
-    ret = handle_->GetVal(&offset_, &key, &end) 
-      && handle_->GetVal(&offset_, &value, &end);   
+    ret = handle_->Get(&offset_, &key, &end) 
+      && handle_->Get(&offset_, &value, &end);   
     if (!valid()) { 
       break;
     }

@@ -3,7 +3,7 @@
 #include "slash/include/slash_status.h"
 using namespace slash;
 
-bool ZipmapParser::Zipmap::GetValue(bool skip_free, size_t *offset, std::string *value) {
+bool ZipmapParser::Zipmap::Get(size_t *offset, std::string *value, bool skip_free) {
   uint8_t skip_step = skip_free ? 1 : 0;  
   char *p = entrys + *offset;    
   uint32_t len_size = GetEntryLenSize(p);
@@ -18,8 +18,8 @@ bool ZipmapParser::Zipmap::GetKV(size_t *offset, std::string *key, std::string *
     *end = true;
     return true;
   }
-  GetValue(false, offset, key);
-  GetValue(true, offset, value);
+  Get(offset, key, false);
+  Get(offset, value, true);
   return true;
 }
 bool ZipmapParser::Zipmap::IsEnd(size_t *offset) {
@@ -54,7 +54,7 @@ ZipmapParser::ZipmapParser(void *buf)
     offset_(0) {
 }
 
-Status ZipmapParser::GetResult(std::map<std::string, std::string> *result) {
+Status ZipmapParser::GetMap(std::map<std::string, std::string> *result) {
   bool ret = true, end = false;
   auto valid = [&] { return ret && !end; };
   offset_ += 1;

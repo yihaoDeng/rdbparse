@@ -37,14 +37,14 @@ class ZiplistParser {
       uint32_t ztail;
       uint16_t len;
       char entrys[0];
-      bool GetVal(size_t *offset, std::string *buf, bool *end);
+      bool Get(size_t *offset, std::string *buf, bool *end);
 
-      bool GetIntVal(size_t *offset, int64_t *v);
-      bool GetStrVal(size_t *offset, std::string *v);
+      bool GetInt(size_t *offset, int64_t *v);
+      bool GetStr(size_t *offset, std::string *v);
     };
 
-    Status GetListResult(std::list<std::string> *result);
-    Status GetZsetOrHashResult(std::map<std::string, std::string> *result); 
+    Status GetList(std::list<std::string> *result);
+    Status GetZsetOrHash(std::map<std::string, std::string> *result); 
   private:
     Ziplist *handle_; 
     size_t offset_;

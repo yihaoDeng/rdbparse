@@ -14,14 +14,14 @@ class ZipmapParser {
     };
     struct Zipmap {
        char entrys[0];         
-       bool GetValue(bool skip_free, size_t *offset, std::string *value);
+       bool Get(size_t *offset, std::string *value, bool skip_free);
        bool GetKV(size_t *offset, std::string *key, std::string *value, bool *end); 
        bool IsEnd(size_t *offset);
        uint32_t GetEntryLenSize(char *entry); 
        uint32_t GetEntryStrLen(uint8_t len_size, char *entry); 
     };
     
-    Status GetResult(std::map<std::string, std::string> *result);
+    Status GetMap(std::map<std::string, std::string> *result);
   private:
     Zipmap *handle_;
     size_t offset_;     

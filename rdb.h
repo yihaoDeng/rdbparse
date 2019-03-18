@@ -33,55 +33,40 @@ struct ParsedResult {
   std::set<std::string> set_value;
   std::map<std::string, std::string> map_value;
   std::list<std::string> list_value;
+  void Debug();
 };
-
-struct Ziplist {
-  uint32_t bytes; 
-  uint32_t length;
-  uint32_t tail;
-  char entrys[0];
-};
-
 
 class RdbParser {
   public:
     RdbParser(const std::string& rdb_path); 
     ~RdbParser();
 
-    //enum ZiplistDataFlag {
-    //  kZiplistBegin = 254,
-    //  kZiplistEnd = 0xff  
-    //};
     enum RdbEntryType {
-      kRdbExpireSec = 0xfd, 
-      kRdbExpireMs = 0xfc,
-      kRdbSelectDb = 0xfe,
-      kRdbEof = 0xff
+      kExpireSec = 0xfd, 
+      kExpireMs = 0xfc,
+      kSelectDb = 0xfe,
+      kEof = 0xff
     };
     enum LengthType {
-      kRdb6B = 0,   
-      kRdb14B,
-      kRdb32B,
-      kRdbEncv,
-      kRdbLenErr = UINT32_MAX
+      k6B = 0,   
+      k14B,
+      k32B,
+      kEncv,
+      kLenErr = UINT32_MAX
     };
     enum EncType {
-      kRdbEncInt8 = 0,
-      kRdbEncInt16,
-      kRdbEncInt32,
-      kRdbEncLzf
+      kEncInt8 = 0,
+      kEncInt16,
+      kEncInt32,
+      kEncLzf
     }; 
-    const static int kZipEncString6b = 0 << 6;
-    const static int kZipEncString14b = 1 << 6;
-    const static int kZipEncString32b = 2 << 6;
-    const static int kZipEncStringMask = 0xc0;  
     const static std::string kMagicString;
-
     const static int kMagicVersion = 5;
     Status Init(); 
     Status Next();
     bool Valid(); 
     ParsedResult *Value(); 
+    void ResetResult(); 
     Status ReadAndChecksum(uint64_t len, Slice *result, char *scratch);
     Status LoadExpiretime(uint8_t type, int *expire_time); 
     Status LoadEntryType(uint8_t *type);
@@ -90,7 +75,6 @@ class RdbParser {
     Status LoadEntryValue(uint8_t type);
 
     std::string GetTypeName(ValueType type);
-    void ResetResult(); 
   private: 
     Status LoadFieldLen(uint32_t *length, bool *is_encoded);
     Status LoadIntVal(uint32_t type, std::string *result); 
@@ -114,6 +98,6 @@ class RdbParser {
     Arena *arena_;
     void operator=(const RdbParser&);
 };
-
 const std::string RdbParser::kMagicString = "REDIS";
+
 #endif
