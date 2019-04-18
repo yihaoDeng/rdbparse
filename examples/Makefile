@@ -59,5 +59,4 @@ parse_test: parse_test.cc
 
 clean:
 	find . -name "*.[oda]" -exec rm -f {} \;
-	rm -rf ./bg_thread ./http_server ./https_server ./mydispatch_srv ./myholy_srv \
-					./myholy_srv_chandle ./myproto_cli ./redis_cli_test ./simple_http_server
+	rm -rf ./parse_test 
