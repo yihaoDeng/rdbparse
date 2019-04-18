@@ -11,7 +11,7 @@ bool ZiplistParser::Ziplist::Get(size_t *offset, std::string *str, bool *end) {
     *end = true;
     return true; 
   }
-  p += (*p < kZiplistBegin) ? 1 : 5;
+  p += (static_cast<uint8_t>(*p) < kZiplistBegin) ? 1 : 5;
   *offset = p - entrys;
 
   uint8_t enc = static_cast<uint8_t>(*p) & kZipListStrMask; 

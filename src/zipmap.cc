@@ -1,8 +1,8 @@
 #include "zipmap.h"
 #include "util.h"
 #include "slash/include/slash_status.h"
-using namespace slash;
 
+using namespace slash;
 bool ZipmapParser::Zipmap::Get(size_t *offset, std::string *value, bool skip_free) {
   uint8_t skip_step = skip_free ? 1 : 0;  
   char *p = entrys + *offset;    
@@ -31,7 +31,7 @@ bool ZipmapParser::Zipmap::IsEnd(size_t *offset) {
 }
 uint32_t ZipmapParser::Zipmap::GetEntryLenSize(char *entry) {
   uint32_t size = 0; 
-  int8_t flag = static_cast<int8_t>(entry[0]);
+  uint8_t flag = static_cast<uint8_t>(entry[0]);
   if (flag < kZipmapBiglen) {
     size = 1;
   } else if (flag == kZipmapBiglen) {

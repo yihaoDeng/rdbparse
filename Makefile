@@ -137,10 +137,6 @@ clean:
 %.o: %.cc
 	$(AM_V_CXX)$(CXX) $(CXXFLAGS) -c $< -o $@
 
-#%.d: %.cc
-#	@set -e; rm -f $@; $(CXX) -MM $(CXXFLAGS) $< > $@.$$$$; \
-#	sed 's,\($(notdir $*)\)\.o[ :]*,$(SRC_DIR)/\1.o $@ : ,g' < $@.$$$$ > $@; \
-#	rm -f $@.$$$$
 
 ifneq ($(MAKECMDGOALS),clean)
   -include $(LIBOBJECTS:.o=.d)

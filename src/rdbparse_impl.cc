@@ -36,6 +36,30 @@ void ParsedResult::Debug() {
     printf("]\n");
   } else if (this->type == "list") {
     printf("value: []\n");  
+  } else if (this->type == "set") {
+    printf("value:["); 
+    auto &set_value = this->set_value;
+    if (!set_value.empty()) {
+      for (auto it = set_value.begin(); it != set_value.end();) {
+        printf("%s", (*it).c_str());
+        it++;
+        if (it != set_value.end()) {
+          printf(", ");
+        }
+      }
+    } else {
+      auto& list_value = this->list_value; 
+      for (auto it = list_value.begin(); it != list_value.end();) {
+        printf("%s", (*it).c_str());
+        it++;
+        if (it != list_value.end()) {
+          printf(", ");
+        }
+      }
+    
+    }
+
+    printf("]\n"); 
   }
 }
 
@@ -317,29 +341,23 @@ Status RdbParseImpl::LoadEntryValue(uint8_t type) {
   switch (type) {
     case kRdbString:  
       s = LoadString(&(result_->kv_value)); 
-      if (!s.ok()) { return s; }         
       break; 
     case kRdbIntset:
       s = LoadIntset(&(result_->set_value));               
-      if (!s.ok()) { return s; }              
       break;
     case kRdbListZiplist: 
       s = LoadListZiplist(&(result_->list_value));
-      if (!s.ok()) { return s; }  
       break;
     case kRdbHashZipMap:
       s = LoadZipmap(&(result_->map_value));
-      if (!s.ok()) { return s; }
       break;
     case kRdbZsetZiplist:               
     case kRdbHashZiplist:
       s = LoadZsetOrHashZiplist(&(result_->map_value));
-      if (!s.ok()) { return s; }
       break;
     case kRdbList:
     case kRdbSet:                
       s = LoadListOrSet(&(result_->list_value));
-      if (s.ok()) { return s; }
       break;
     case kRdbHash:
     case kRdbZset:
@@ -348,7 +366,7 @@ Status RdbParseImpl::LoadEntryValue(uint8_t type) {
     default: 
       return Status::OK(); // skip unrecognised value type
   }
-  return Status::OK();
+  return s; 
 }
 Status RdbParseImpl::LoadIntset(std::set<std::string> *result) {
   std::string value;

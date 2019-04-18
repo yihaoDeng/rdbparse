@@ -8,7 +8,7 @@ struct Intset {
    uint32_t encoding; 
    uint32_t length;
    int8_t content[0];
-   Status Get(int pos, int64_t *v);
+   Status Get(size_t pos, int64_t *v);
    Status Dump();
 };
 #endif

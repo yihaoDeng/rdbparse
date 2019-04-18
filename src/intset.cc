@@ -2,7 +2,7 @@
 #include "intset.h"
 #include "util.h"
 
-Status Intset::Get(int pos, int64_t *v) {
+Status Intset::Get(size_t pos, int64_t *v) {
   if (pos >= length) {
     return Status::Incomplete("uncomplet intsetk"); 
   }
@@ -28,15 +28,14 @@ Status Intset::Get(int pos, int64_t *v) {
 Status Intset::Dump() {
   printf("encoding: %d\n", encoding);
   printf("length: %d\n", length);
-  int i;
   int64_t v;
   printf("element { ");
-  for (i = 0; i < length; i++) {
+  for (size_t i = 0; i < length; i++) {
     Status s = Get(i, &v); 
     if (!s.ok()) {
       return s;
     }
-    printf("%lld\t", v);
+    printf("%ld\t", v);
   }
   printf("}\n");
   return Status::OK();
