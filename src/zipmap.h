@@ -1,9 +1,11 @@
 #ifndef __ZIPMAP__
 #define __ZIPMAP__
+
 #include <map>
 #include "util.h"
-#include "slash/include/slash_status.h"
-using namespace slash;
+#include "include/status.h"
+
+namespace parser {
 
 class ZipmapParser {
   public:
@@ -26,5 +28,5 @@ class ZipmapParser {
     Zipmap *handle_;
     size_t offset_;     
 };
-
+}
 #endif

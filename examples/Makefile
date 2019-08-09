@@ -27,17 +27,10 @@ endif
 PARSE_INCLUDE_DIR=$(PARSE_PATH)
 PARSE_LIBRARY=$(PARSE_PATH)/lib
 
-ifndef SLASH_PATH
-$(warning Warning: missing slash path, using default)
-SLASH_PATH=$(CURDIR)/../third
-endif
 
-SLASH_INCLUDE_DIR=$(SLASH_PATH)
-SLASH_LIBRARY=$(SLASH_PATH)/slash/lib
+CXXFLAGS+= $(OPT) -I$(PARSE_INCLUDE_DIR)
 
-CXXFLAGS+= $(OPT) -I$(PARSE_INCLUDE_DIR) -I$(SLASH_INCLUDE_DIR) 
-
-LDFLAGS := $(DEP_LIBS) $(LDFLAGS) -L$(PARSE_LIBRARY) -L$(SLASH_LIBRARY) -lrdbparse$(DEBUG_SUFFIX) -lslash$(DEBUG_SUFFIX)
+LDFLAGS := $(DEP_LIBS) $(LDFLAGS) -L$(PARSE_LIBRARY) -lrdbparse$(DEBUG_SUFFIX)
 
 parse_test$(DEBUG_SUFFIX): parse_test.cc
 	$(CXX) $(CXXFLAGS) $^ -o$@ $(LDFLAGS) 

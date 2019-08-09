@@ -1,10 +1,10 @@
 #ifndef __ZIPLIST_H__
 #define __ZIPLIST_H__
+
 #include <list>
 #include <map>
-#include "slash/include/env.h" 
-
-using namespace slash;
+#include "include/status.h"
+namespace parser {
 
 enum ZiplistFlag {
   kZiplistBegin = 254,
@@ -49,5 +49,5 @@ class ZiplistParser {
     Ziplist *handle_; 
     size_t offset_;
 };
-
+}
 #endif

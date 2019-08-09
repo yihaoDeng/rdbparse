@@ -35,12 +35,6 @@ SRC_DIR=src
 LIB_SOURCES := $(wildcard $(SRC_DIR)/*.cc)
 
 
-ifndef SLASH_PATH
-  $(warning Warning: missing slash path, using default)
-  SLASH_PATH=$(CURDIR)/third
-endif
-SLASH_INCLUDE_DIR=$(SLASH_PATH)
-SLASH_LIBRARY=$(SLASH_PATH)/slash/lib/libslash.a
 
 AM_DEFAULT_VERBOSITY = 0
 
@@ -81,7 +75,7 @@ ifndef DISABLE_WARNING_AS_ERROR
   WARNING_FLAGS += -Werror
 endif
 
-CXXFLAGS += $(WARNING_FLAGS) -I. -I$(SLASH_INCLUDE_DIR) $(OPT)
+CXXFLAGS += $(WARNING_FLAGS) -I. $(OPT)
 
 #date := $(shell date +%F)
 #git_sha := $(shell git rev-parse HEAD 2>/dev/null)
@@ -117,7 +111,7 @@ all: $(LIBRARY)
 static_lib: $(LIBRARY)
 
 example:
-	@make -C examples PARSE_PATH=$(CURDIR) SLASH_PATH=$(SLASH_PATH) DEBUG_LEVEL=$(DEBUG_LEVEL)
+	@make -C examples PARSE_PATH=$(CURDIR) DEBUG_LEVEL=$(DEBUG_LEVEL)
 
 
 dbg: $(LIBRARY)

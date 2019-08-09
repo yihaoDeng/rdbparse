@@ -1,11 +1,11 @@
 
-#include "rdbparse_impl.h"
 
 #include <arpa/inet.h>
 #include <iostream>
 #include <list>
 #include <set>
-#include "slash/include/slash_string.h"
+
+#include "rdbparse_impl.h"
 #include "include/rdbparse.h"
 #include "util.h"
 #include "intset.h"
@@ -13,7 +13,7 @@
 #include "ziplist.h"
 #include "zipmap.h"
 
-using namespace slash;
+namespace parser {
 
 void ParsedResult::Debug() {
   static std::set<std::string> type_set{"set", "string", "zset", "hash", "list"};
@@ -116,7 +116,7 @@ Status RdbParseImpl::Init() {
   char buf[16];
   Slice result;
   s = ReadAndChecksum(9, &result, buf);  
-  if (!s.ok() || kMagicString != result.ToString().substr(0, kMagicString.size())) {
+  if (!s.ok() || !result.starts_with(kMagicString)) {
     return Status::Incomplete("unsupport rdb head magic");
   }
   result.remove_prefix(kMagicString.size());  
@@ -199,8 +199,7 @@ Status RdbParseImpl::LoadIntVal(uint32_t type, std::string *result) {
   } else {
     return Status::Corruption("no supported type");
   }
-  ll2string(buf, sizeof(buf), val);   
-  result->assign(buf);
+  result->assign(std::to_string(val));
   return s; 
 }
 
@@ -374,7 +373,6 @@ Status RdbParseImpl::LoadIntset(std::set<std::string> *result) {
     return Status::Corruption("Parse error");
   }
 
-  char buf[16];
   size_t i = 0;
   Intset *int_set = reinterpret_cast<Intset *>((void *)(value.data())); 
   for (; i < int_set->length; i++) {
@@ -382,8 +380,7 @@ Status RdbParseImpl::LoadIntset(std::set<std::string> *result) {
     if (!int_set->Get(i, &v64).ok()) {
       break; 
     }
-    int size = ll2string(buf, sizeof(buf), v64);
-    result->emplace(buf, size);
+    result->emplace(std::to_string(v64));
   } 
   return i == int_set->length ? 
     Status::OK() : Status::Corruption("Parse error");
@@ -445,4 +442,6 @@ Status RdbParse::Open(const std::string &path, RdbParse **rdb) {
 }
 
 RdbParse::~RdbParse() {
+}
+
 }

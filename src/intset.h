@@ -1,9 +1,9 @@
 #ifndef __INTSET_H__
 #define __INTSET_H__
+#include "include/status.h"
 
-#include "slash/include/env.h"
+namespace parser {
 
-using namespace slash;
 struct Intset {
    uint32_t encoding; 
    uint32_t length;
@@ -11,4 +11,5 @@ struct Intset {
    Status Get(size_t pos, int64_t *v);
    Status Dump();
 };
+}
 #endif

@@ -1,9 +1,9 @@
 #include <list>
 #include "ziplist.h"
 #include "util.h"
-#include "slash/include/slash_string.h"
 
-using namespace slash;
+namespace parser {
+
 
 bool ZiplistParser::Ziplist::Get(size_t *offset, std::string *str, bool *end) {
   char *p = entrys + *offset;     
@@ -23,10 +23,7 @@ bool ZiplistParser::Ziplist::Get(size_t *offset, std::string *str, bool *end) {
   if (!GetInt(offset, &val)) { 
     return false; 
   }
-
-  char buf[16];
-  int len = ll2string(buf, sizeof(buf), val);
-  str->assign(buf, len); 
+  str->assign(std::to_string(val)); 
   return true;
 }
 bool ZiplistParser::Ziplist::GetStr(size_t *offset, std::string *val) {
@@ -62,25 +59,25 @@ bool ZiplistParser::Ziplist::GetInt(size_t *offset, int64_t *val) {
   if (enc == kIntEnc16) {
     int16_t v16;
     memcpy(&v16, p, sizeof(int16_t));
-    memrev16ifbe(&v16);
+    MayReverseMemory(&v16, sizeof(int16_t));
     *val = static_cast<int64_t>(v16); 
     p += sizeof(int16_t);
   } else if (enc == kIntEnc32) {
     int32_t v32;
     memcpy(&v32, p, sizeof(int32_t));
-    memrev32ifbe(&v32);
+    MayReverseMemory(&v32, sizeof(int32_t));
     *val = v32; 
     p += sizeof(int32_t);
   } else if (enc == kIntEnc64) {
     int64_t v64;
     memcpy(&v64, p, sizeof(int64_t));
-    memrev64ifbe(&v64);
+    MayReverseMemory(&v64, sizeof(int64_t));
     *val = v64; 
     p += sizeof(int64_t);
   } else if (enc == kIntEnc24) {
     int32_t v32;
     memcpy(&v32, p, 3);
-    memrev32ifbe(&v32);
+    MayReverseMemory(&v32, sizeof(int32_t));
     *val = static_cast<int64_t>(v32); 
     p += 3;
   } else if (enc == kIntEnc8) {
@@ -128,4 +125,4 @@ Status ZiplistParser::GetZsetOrHash(std::map<std::string, std::string> *result) 
   } 
   return ret ? Status::OK() : Status::Corruption("Parse error"); 
 }
-
+}

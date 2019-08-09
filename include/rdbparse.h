@@ -5,9 +5,11 @@
 #include <map>
 #include <list>
 #include <set> 
-#include "slash/include/slash_status.h" 
+#include "status.h" 
+#include "slice.h"
 
-using namespace slash; 
+namespace parser {
+
 
 struct ParsedResult {
   ParsedResult(): expire_time(-1) {}
@@ -33,5 +35,7 @@ class RdbParse {
     RdbParse(const RdbParse&) = delete; 
     RdbParse& operator=(const RdbParse&) = delete;
 };
+
+}
 #endif
 

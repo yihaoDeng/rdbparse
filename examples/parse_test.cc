@@ -1,9 +1,10 @@
 #include <iostream>
-#include "slash/include/slash_status.h"
 #include "include/rdbparse.h"
 void PrintHelp() {
   printf("./parse_test rdbfile.rdb");
 }
+
+using namespace parser;
 int main(int argc, char* argv[]) {
   if (argc < 2) {
     PrintHelp(); 

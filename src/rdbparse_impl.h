@@ -5,11 +5,11 @@
 #include <list>
 #include <map> 
 #include <unordered_map>
-#include "slash/include/env.h"
-#include "slash/include/slash_string.h"
 #include "include/rdbparse.h"
+#include "util.h"
 
-using namespace slash;
+
+namespace parser {
 
 enum ValueType {
   kRdbString = 0, 
@@ -89,4 +89,5 @@ class RdbParseImpl : public RdbParse {
 };
 const std::string RdbParseImpl::kMagicString = "REDIS";
 
+}
 #endif

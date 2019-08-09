@@ -1,8 +1,9 @@
 #include "zipmap.h"
 #include "util.h"
-#include "slash/include/slash_status.h"
 
-using namespace slash;
+
+namespace parser {
+
 bool ZipmapParser::Zipmap::Get(size_t *offset, std::string *value, bool skip_free) {
   uint8_t skip_step = skip_free ? 1 : 0;  
   char *p = entrys + *offset;    
@@ -45,7 +46,7 @@ uint32_t ZipmapParser::Zipmap::GetEntryStrLen(uint8_t len_size, char *entry) {
     str_len = static_cast<uint32_t>(entry[0]);
   } else if (len_size == 5) {
     memcpy(&str_len, entry + 1, 4); 
-    memrev32ifbe(str_len); 
+    MayReverseMemory(&str_len, sizeof(uint32_t));
   }
   return str_len; 
 }
@@ -67,4 +68,6 @@ Status ZipmapParser::GetMap(std::map<std::string, std::string> *result) {
     result->insert({key, value});
   }
   return ret ? Status::OK() : Status::Corruption("Parse error");
+}
+
 }
