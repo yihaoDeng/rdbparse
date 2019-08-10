@@ -1,5 +1,3 @@
-
-
 #include <arpa/inet.h>
 #include <iostream>
 #include <list>
@@ -58,6 +56,18 @@ void ParsedResult::Debug() {
       }
     }
     printf("]\n"); 
+  } else if (this->type == "zset") {
+    printf("value:["); 
+    auto &map_value = this->map_value;
+    for(auto it = map_value.begin(); it != map_value.end();) {
+      printf("%s -> %s", it->first.c_str(), it->second.c_str()); 
+      it++; 
+      if (it != map_value.end()) {
+        printf(", ");
+      }
+    }
+    printf("]\n");
+    
   }
 }
 
@@ -142,15 +152,14 @@ Status RdbParseImpl::Read(uint64_t len, Slice *result, char *scratch) {
 Status RdbParseImpl::LoadExpiretime(uint8_t type, int *expire_time) {
   char buf[8];
   Status s;
-  Slice result;
   if (type == kExpireMs) {
     uint64_t t64;  
-    s = Read(8, &result, buf); 
+    s = Read(8, nullptr, buf); 
     memcpy(&t64, buf, 8);
     *expire_time = static_cast<int>(t64/1000); 
   } else {
     uint32_t t32;
-    s = Read(4, &result, buf); 
+    s = Read(4, nullptr, buf); 
     memcpy(&t32, buf, 4);
     *expire_time = static_cast<int>(t32);
   }
@@ -267,7 +276,7 @@ Status RdbParseImpl::LoadListOrSet(std::list<std::string> *result) {
   }
   return i == field_size ? Status::OK() : Status::Corruption("Parse error");
 } 
-Status RdbParseImpl::LoadHashOrZset(std::map<std::string, std::string> *result) {
+Status RdbParseImpl::LoadHash(std::map<std::string, std::string> *result) {
   uint32_t i = 0, field_size;   
   Status s = LoadFieldLen(&field_size, NULL);  
   if (!s.ok()) { return s; }
@@ -280,14 +289,38 @@ Status RdbParseImpl::LoadHashOrZset(std::map<std::string, std::string> *result) 
   }
   return i == field_size ? Status::OK() : Status::Corruption("Parse error");
 }
+Status RdbParseImpl::LoadZset(std::map<std::string, double> *result, bool zset2) {
+  uint32_t i = 0, field_size;   
+  Status s = LoadFieldLen(&field_size, NULL);  
+  if (!s.ok()) { return s; }
+  std::string key;
+  double val;
+  for (i = 0; i < field_size; i++) {
+    if (!LoadString(&key).ok()) {
+      break;
+    }
+    if (zset2) {
+      if (!LoadBinaryDouble(&val).ok()) {
+        break; 
+      } 
+    } else {
+      if (!LoadDouble(&val).ok()) {
+        break;
+      }
+    }
+    result->insert({key, val});
+  }
+  return i == field_size ? Status::OK() : Status::Corruption("Parse error");
+}  
 Status RdbParseImpl::LoadListQuicklist(std::list<std::string> *result) {
   uint32_t i, field_size; 
   Status s = LoadFieldLen(&field_size, NULL);
   if (!s.ok()) { return s; }
   for (i = 0; i < field_size; i++) {
-       
+    s = LoadListZiplist(result); 
+    if (!s.ok()) { break; }
   }
-  return Status::OK();
+  return i == field_size ? Status::OK() : Status::Corruption("parse Corruption");
 }
 Status RdbParseImpl::LoadString(std::string *result) {
   uint32_t len;
@@ -313,10 +346,44 @@ Status RdbParseImpl::LoadString(std::string *result) {
   return s;
 }
 
+Status RdbParseImpl::LoadDouble(double *val) {
+   char buf[256];   
+   Status s = Read(1, nullptr, buf); 
+   if (!s.ok()) { return s; }
+   size_t len = static_cast<size_t>(buf[0]);
+   switch (len) {
+     case 255: 
+       *val = std::numeric_limits<double>::max(); 
+       break;
+     case 254:
+       *val = std::numeric_limits<double>::min();
+       break;
+     case 253:
+       *val = std::numeric_limits<double>::quiet_NaN();
+       break;
+     default: {
+       s = Read(static_cast<uint64_t>(len), nullptr, buf);
+       int ret = string2d(buf, len, val);
+       if (!ret) {
+         s = Status::Corruption("string2double failed");
+       }
+     }        
+   }
+   return Status::OK();
+}
+Status RdbParseImpl::LoadBinaryDouble(double *val) {
+  char *ptr = reinterpret_cast<char *>(val);
+  Status s = Read(sizeof(*val), nullptr, ptr); 
+  if (!s.ok()) {
+    return s;
+  }
+  MayReverseMemory(ptr, sizeof(*val));
+  return Status::OK();
+}
+
 Status RdbParseImpl::LoadFieldLen(uint32_t *length, bool *is_encoded) {
   char buf[8];      
-  Slice result;
-  Status s = Read(1, &result, buf);  
+  Status s = Read(1, nullptr, buf);  
   if (!s.ok()) { 
     *length = kLenErr;
     return s; 
@@ -326,11 +393,11 @@ Status RdbParseImpl::LoadFieldLen(uint32_t *length, bool *is_encoded) {
   if (type == k6B) {
     len = buf[0] & 0x3f;
   } else if (type == k14B) {
-    s = Read(1, &result, buf + 1); 
+    s = Read(1, nullptr, buf + 1); 
     if (!s.ok()) { return s; }
     len = ((buf[0] && 0x3f) << 8) | buf[1];   
   } else if (type == k32B) {
-    s = Read(4, &result, buf); 
+    s = Read(4, nullptr, buf); 
     if (!s.ok()) { return s; }
     memcpy(&len, buf, 4);  
     len = ntohl(len);
@@ -367,11 +434,13 @@ Status RdbParseImpl::LoadEntryValue(uint8_t type) {
       s = LoadListOrSet(&(result_->list_value));
       break;
     case kRdbHash:
+      s = LoadHash(&(result_->map_value));
+      break;
     case kRdbZset:
-      s = LoadHashOrZset(&(result_->map_value));
+      s = LoadZset(&(result_->zset_value));
       break;
     case kRdbZset2: //TODO(deng.yihao): add more type 
-      s = LoadHashOrZset(&(result_->map_value));
+      s = LoadZset(&(result_->zset_value), true); 
       break;
     case kRdbModule:
       break;
@@ -380,6 +449,7 @@ Status RdbParseImpl::LoadEntryValue(uint8_t type) {
     case kRdbStreamListpacks:
       break;
     case kRdbListQuicklist:
+      s = LoadListQuicklist(&(result_->list_value));
       break;
     default: 
       return Status::OK(); // skip unrecognised value type

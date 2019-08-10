@@ -5,7 +5,9 @@
 #include <errno.h>
 #include <stdint.h>
 #include <cstddef>
+#include <stdlib.h>
 #include <limits.h>
+#include <limits>
 
 #include "include/status.h"
 #include "include/slice.h"
@@ -78,7 +80,7 @@ class SequentialFile {
 Status NewSequentialFile(const std::string& fname, SequentialFile** result);
 int string2ll(const char *s, size_t slen, long long *value);
 int string2l(const char *s, size_t slen, long *lval); 
-
+int string2d(const char *s, size_t slen, double *dval);
 }
 #endif
 

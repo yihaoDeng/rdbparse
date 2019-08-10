@@ -27,6 +27,7 @@ struct ParsedResult {
   std::string kv_value;
   std::set<std::string> set_value;
   std::map<std::string, std::string> map_value;
+  std::map<std::string, double> zset_value;
   std::list<std::string> list_value;
   void Debug();
 };

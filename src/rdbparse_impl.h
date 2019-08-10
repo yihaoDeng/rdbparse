@@ -85,13 +85,16 @@ class RdbParseImpl : public RdbParse {
     Status LoadFieldLen(uint32_t *length, bool *is_encoded);
     Status LoadIntVal(uint32_t type, std::string *result); 
     Status LoadString(std::string *result);
+    Status LoadDouble(double *val);
+    Status LoadBinaryDouble(double *val);
     Status LoadIntset(std::set<std::string> *result);
     Status LoadEncLzf(std::string *result);
     Status LoadListZiplist(std::list<std::string> *result);
     Status LoadZsetOrHashZiplist(std::map<std::string, std::string> *result); 
     Status LoadZipmap(std::map<std::string, std::string> *result);
     Status LoadListOrSet(std::list<std::string> *result);
-    Status LoadHashOrZset(std::map<std::string, std::string> *result);
+    Status LoadHash(std::map<std::string, std::string> *result);
+    Status LoadZset(std::map<std::string, double> *result, bool is_zset2 = false);
     Status LoadListQuicklist(std::list<std::string> *result);
 
     std::string path_;

@@ -100,6 +100,17 @@ int string2l(const char *s, size_t slen, long *lval) {
     *lval = (long)llval;
     return 1;
 }
+
+int string2d(const char *s, size_t slen, double *dval) {
+  char *pEnd;
+  double d = strtod(s, &pEnd);
+  if (pEnd != s + slen)
+    return 0;
+
+  if (dval != NULL) *dval = d;
+  return 1;
+
+}
 void MayReverseMemory(void *p, size_t len) {
   if (kLittleEndian) {
     return;
