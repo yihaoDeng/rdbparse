@@ -56,7 +56,7 @@ class RdbParseImpl : public RdbParse {
     bool Valid(); 
     ParsedResult *Value(); 
     void ResetResult(); 
-    Status ReadAndChecksum(uint64_t len, Slice *result, char *scratch);
+    Status Read(uint64_t len, Slice *result, char *scratch);
     Status LoadExpiretime(uint8_t type, int *expire_time); 
     Status LoadEntryType(uint8_t *type);
     Status LoadEntryDBNum(uint8_t *db_num);

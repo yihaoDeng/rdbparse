@@ -56,9 +56,7 @@ void ParsedResult::Debug() {
           printf(", ");
         }
       }
-    
     }
-
     printf("]\n"); 
   }
 }
@@ -115,7 +113,7 @@ Status RdbParseImpl::Init() {
 
   char buf[16];
   Slice result;
-  s = ReadAndChecksum(9, &result, buf);  
+  s = Read(9, &result, buf);  
   if (!s.ok() || !result.starts_with(kMagicString)) {
     return Status::Incomplete("unsupport rdb head magic");
   }
@@ -130,7 +128,7 @@ Status RdbParseImpl::Init() {
 ParsedResult* RdbParseImpl::Value() {
   return result_;
 }
-Status RdbParseImpl::ReadAndChecksum(uint64_t len, Slice *result, char *scratch) {
+Status RdbParseImpl::Read(uint64_t len, Slice *result, char *scratch) {
   Status s = sequence_file_->Read(len, result, scratch); 
   if (!s.ok()) {
     return s;
@@ -147,12 +145,12 @@ Status RdbParseImpl::LoadExpiretime(uint8_t type, int *expire_time) {
   Slice result;
   if (type == kExpireMs) {
     uint64_t t64;  
-    s = ReadAndChecksum(8, &result, buf); 
+    s = Read(8, &result, buf); 
     memcpy(&t64, buf, 8);
     *expire_time = static_cast<int>(t64/1000); 
   } else {
     uint32_t t32;
-    s = ReadAndChecksum(4, &result, buf); 
+    s = Read(4, &result, buf); 
     memcpy(&t32, buf, 4);
     *expire_time = static_cast<int>(t32);
   }
@@ -161,7 +159,7 @@ Status RdbParseImpl::LoadExpiretime(uint8_t type, int *expire_time) {
 Status RdbParseImpl::LoadEntryType(uint8_t *type) {
   char buf[1];
   Slice result;
-  Status s = ReadAndChecksum(1, &result, buf); 
+  Status s = Read(1, &result, buf); 
   if (!s.ok()) { return s; }
   *type = static_cast<uint8_t>(buf[0]);    
   return s;
@@ -173,7 +171,7 @@ Status RdbParseImpl::LoadEntryKey(std::string *result) {
 Status RdbParseImpl::LoadEntryDBNum(uint8_t *db_num) {
   char buf[1];
   Slice result;
-  Status s = ReadAndChecksum(1, &result, buf); 
+  Status s = Read(1, &result, buf); 
   if (!s.ok()) { return s; } 
   *db_num = static_cast<uint8_t>(buf[0]);
   return s;
@@ -184,15 +182,15 @@ Status RdbParseImpl::LoadIntVal(uint32_t type, std::string *result) {
   Status s;
   int32_t val;
   if (type == kEncInt8) {
-    s = ReadAndChecksum(1, &slice_buf, buf);
+    s = Read(1, &slice_buf, buf);
     if (!s.ok()) { return s; }
     val = static_cast<int8_t>(buf[0]);  
   } else if (type == kEncInt16) {
-    s = ReadAndChecksum(2, &slice_buf, buf);
+    s = Read(2, &slice_buf, buf);
     if (!s.ok()) { return s; }
     val = static_cast<int8_t>(buf[0]) | (static_cast<int8_t>(buf[1]) << 8);
   } else if (type == kEncInt32) {
-    s = ReadAndChecksum(4, &slice_buf, buf);
+    s = Read(4, &slice_buf, buf);
     if (!s.ok()) { return s; }
     val = static_cast<int8_t>(buf[0]) | (static_cast<int8_t>(buf[1]) << 8) 
       | (static_cast<int8_t>(buf[2]) << 16) | (static_cast<int8_t>(buf[3]) << 24);
@@ -216,7 +214,7 @@ Status RdbParseImpl::LoadEncLzf(std::string *result) {
     return Status::Corruption("no enough memory to alloc"); 
   }
   Slice compress_slice; 
-  bool ret = ReadAndChecksum(compress_len, &compress_slice, compress_buf).ok() 
+  bool ret = Read(compress_len, &compress_slice, compress_buf).ok() 
     && (0 != DecompressLzf(compress_buf, compress_len, raw_buf, raw_len));
   if (ret) {
     result->assign(raw_buf, raw_len);
@@ -301,7 +299,7 @@ Status RdbParseImpl::LoadString(std::string *result) {
   }
   Slice buf_slice;
   char *buf = new char[len];
-  s = ReadAndChecksum(len, &buf_slice, buf);  
+  s = Read(len, &buf_slice, buf);  
   if (s.ok()) result->assign(buf_slice.data(), buf_slice.size());
   delete [] buf;
   return s;
@@ -310,7 +308,7 @@ Status RdbParseImpl::LoadString(std::string *result) {
 Status RdbParseImpl::LoadFieldLen(uint32_t *length, bool *is_encoded) {
   char buf[8];      
   Slice result;
-  Status s = ReadAndChecksum(1, &result, buf);  
+  Status s = Read(1, &result, buf);  
   if (!s.ok()) { 
     *length = kLenErr;
     return s; 
@@ -320,13 +318,13 @@ Status RdbParseImpl::LoadFieldLen(uint32_t *length, bool *is_encoded) {
   if (type == k6B) {
     len = buf[0] & 0x3f;
   } else if (type == k14B) {
-    s = ReadAndChecksum(1, &result, buf + 1); 
+    s = Read(1, &result, buf + 1); 
     if (!s.ok()) { return s; }
     len = ((buf[0] && 0x3f) << 8) | buf[1];   
   } else if (type == k32B) {
-    s = ReadAndChecksum(4, &result, buf); 
-    memcpy(&len, buf, 4);  
+    s = Read(4, &result, buf); 
     if (!s.ok()) { return s; }
+    memcpy(&len, buf, 4);  
     len = ntohl(len);
   } else {
     if (is_encoded) { *is_encoded = true; }   
