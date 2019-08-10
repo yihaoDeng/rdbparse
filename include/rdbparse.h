@@ -10,11 +10,18 @@
 
 namespace parser {
 
-
+struct AuxKV {
+  std::string aux_key;  
+  std::string aux_val;
+};
 struct ParsedResult {
   ParsedResult(): expire_time(-1) {}
   std::string type;
-  uint8_t db_num;
+  uint32_t db_num;
+  uint32_t idle;
+  uint32_t db_size;
+  uint32_t expire_size;
+  AuxKV aux_field;
   int expire_time;
   std::string key;
   std::string kv_value;

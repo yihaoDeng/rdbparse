@@ -272,13 +272,22 @@ Status RdbParseImpl::LoadHashOrZset(std::map<std::string, std::string> *result) 
   Status s = LoadFieldLen(&field_size, NULL);  
   if (!s.ok()) { return s; }
   std::string key, value;
-  for (; i < field_size; i++) {
+  for (i = 0; i < field_size; i++) {
     if (!LoadString(&key).ok() || !LoadString(&value).ok()) {
       break;
     }
     result->insert({key, value});
   }
   return i == field_size ? Status::OK() : Status::Corruption("Parse error");
+}
+Status RdbParseImpl::LoadListQuicklist(std::list<std::string> *result) {
+  uint32_t i, field_size; 
+  Status s = LoadFieldLen(&field_size, NULL);
+  if (!s.ok()) { return s; }
+  for (i = 0; i < field_size; i++) {
+       
+  }
+  return Status::OK();
 }
 Status RdbParseImpl::LoadString(std::string *result) {
   uint32_t len;
@@ -297,10 +306,9 @@ Status RdbParseImpl::LoadString(std::string *result) {
         return Status::Corruption("");
     }  
   }
-  Slice buf_slice;
   char *buf = new char[len];
-  s = Read(len, &buf_slice, buf);  
-  if (s.ok()) result->assign(buf_slice.data(), buf_slice.size());
+  s = Read(len, nullptr, buf);  
+  if (s.ok()) result->assign(buf, len);
   delete [] buf;
   return s;
 }
@@ -327,7 +335,9 @@ Status RdbParseImpl::LoadFieldLen(uint32_t *length, bool *is_encoded) {
     memcpy(&len, buf, 4);  
     len = ntohl(len);
   } else {
-    if (is_encoded) { *is_encoded = true; }   
+    if (is_encoded) { 
+      *is_encoded = true; 
+    }   
     len = buf[0] & 0x3f;
   }
   *length = len;
@@ -359,6 +369,17 @@ Status RdbParseImpl::LoadEntryValue(uint8_t type) {
     case kRdbHash:
     case kRdbZset:
       s = LoadHashOrZset(&(result_->map_value));
+      break;
+    case kRdbZset2: //TODO(deng.yihao): add more type 
+      s = LoadHashOrZset(&(result_->map_value));
+      break;
+    case kRdbModule:
+      break;
+    case kRdbModule2: 
+      break;
+    case kRdbStreamListpacks:
+      break;
+    case kRdbListQuicklist:
       break;
     default: 
       return Status::OK(); // skip unrecognised value type
@@ -397,7 +418,7 @@ Status RdbParseImpl::Next() {
       return Status::OK(); 
     }
     if (type == kSelectDb) {
-      s = LoadEntryDBNum(&(result_->db_num));
+      s = LoadFieldLen(&(result_->db_num), NULL);
       if (!s.ok()) { return s; } 
       continue;
     } 
@@ -405,8 +426,33 @@ Status RdbParseImpl::Next() {
     if (type == kExpireMs || type == kExpireSec) {
       s = LoadExpiretime(type, &(result_->expire_time));
       if (!s.ok()) { return s; }
-      continue;
+      s = LoadEntryType(&type);
+      if (!s.ok()) { return s; }
     }  
+    if (type == kIdle) {
+      s = LoadFieldLen(&(result_->idle), NULL);
+      if (!s.ok()) { return s; }
+      s = LoadEntryType(&type);
+      if (!s.ok()) { return s; }
+    }
+    if (type == kModuleAux) {
+      //TODO(dengyihao): add module
+      continue; 
+    }
+    if (type == kResizedb) {
+      s = LoadFieldLen(&result_->db_size, NULL);
+      if (!s.ok()) { return s; }
+      s = LoadFieldLen(&result_->expire_size, NULL);
+      if (!s.ok()) { return s; }
+      continue; 
+    }
+    if (type == kAux) {
+      s = LoadString(&(result_->aux_field.aux_key)); 
+      if (!s.ok()) { return s; }
+      s = LoadString(&(result_->aux_field.aux_val));
+      if (!s.ok()) { return s; }
+      continue;
+    }
     s = LoadEntryKey(&(result_->key));        
     if (!s.ok()) { return s; } 
     result_->type = GetTypeName(ValueType(type));
@@ -421,7 +467,9 @@ std::string RdbParseImpl::GetTypeName(ValueType type) {
       { kRdbSet, "set"}, { kRdbHashZipMap,"hash"},
       { kRdbZsetZiplist, "zset"}, { kRdbHashZiplist, "hash"},
       { kRdbListZiplist,"list"}, { kRdbIntset, "set"},
-      { kRdbHash,"hash"}, { kRdbZsetZiplist,"zset"}
+      { kRdbHash,"hash"}, { kRdbZsetZiplist,"zset"},
+      { kRdbListQuicklist,"list"}, { kRdbStreamListpacks,"stream"},
+      { kRdbModule,"module"}, { kRdbModule2,"module"},
   };
   auto it = type_map.find(type);  
   return it != type_map.end() ? it->second : ""; 

@@ -17,12 +17,16 @@ enum ValueType {
   kRdbSet = 2, 
   kRdbZset= 3, 
   kRdbHash = 4,
+  kRdbZset2 = 5,
+  kRdbModule = 6,
+  kRdbModule2 = 7, 
   kRdbHashZipMap = 9,    
   kRdbListZiplist = 10,     
   kRdbIntset = 11,
   kRdbZsetZiplist = 12,       
   kRdbHashZiplist = 13,
-  kRdbListQuicklist = 15
+  kRdbListQuicklist = 14,
+  kRdbStreamListpacks = 15
 };
 
 class RdbParseImpl : public RdbParse {
@@ -30,10 +34,15 @@ class RdbParseImpl : public RdbParse {
     RdbParseImpl(const std::string& rdb_path); 
     ~RdbParseImpl();
 
-    enum RdbEntryType {
+    enum EntryType {
       kExpireSec = 0xfd, 
       kExpireMs = 0xfc,
       kSelectDb = 0xfe,
+      kModuleAux = 0xf7,
+      kIdle = 0xf8,
+      kFreq = 0xf9,
+      kAux = 0xfa,
+      kResizedb = 0xfb, 
       kEof = 0xff
     };
     enum LengthType {
@@ -42,6 +51,14 @@ class RdbParseImpl : public RdbParse {
       k32B,
       kEncv,
       kLenErr = UINT32_MAX
+    };
+    enum ModuleType {
+      kModuleEof = 0, 
+      kModuleSint, 
+      kModuleUint, 
+      kModuleFloat,
+      kModuleDouble,
+      kModuleString
     };
     enum EncType {
       kEncInt8 = 0,
@@ -75,6 +92,7 @@ class RdbParseImpl : public RdbParse {
     Status LoadZipmap(std::map<std::string, std::string> *result);
     Status LoadListOrSet(std::list<std::string> *result);
     Status LoadHashOrZset(std::map<std::string, std::string> *result);
+    Status LoadListQuicklist(std::list<std::string> *result);
 
     std::string path_;
     SequentialFile *sequence_file_;  
