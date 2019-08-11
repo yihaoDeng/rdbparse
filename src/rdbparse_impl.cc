@@ -33,7 +33,16 @@ void ParsedResult::Debug() {
     }
     printf("]\n");
   } else if (this->type == "list") {
-    printf("value: []\n");  
+    printf("value: [\n");  
+    auto& list_value = this->list_value; 
+    for (auto it = list_value.begin(); it != list_value.end();) {
+      printf("%s", (*it).c_str());
+      it++;
+      if (it != list_value.end()) {
+        printf(", ");
+      }
+    }
+    printf("]\n"); 
   } else if (this->type == "set") {
     printf("value:["); 
     auto &set_value = this->set_value;
@@ -58,16 +67,15 @@ void ParsedResult::Debug() {
     printf("]\n"); 
   } else if (this->type == "zset") {
     printf("value:["); 
-    auto &map_value = this->map_value;
-    for(auto it = map_value.begin(); it != map_value.end();) {
-      printf("%s -> %s", it->first.c_str(), it->second.c_str()); 
+    auto &values = this->zset_value;
+    for(auto it = values.begin(); it != values.end();) {
+      printf("%s -> %lf", it->first.c_str(), it->second); 
       it++; 
-      if (it != map_value.end()) {
+      if (it != values.end()) {
         printf(", ");
       }
     }
     printf("]\n");
-    
   }
 }
 
@@ -215,7 +223,7 @@ Status RdbParseImpl::LoadEncLzf(std::string *result) {
     return Status::Corruption("no enough memory to alloc"); 
   }
   bool ret = Read(compress_len, nullptr, compress_buf).ok() 
-           && (0 != DecompressLzf(compress_buf, compress_len, raw_buf, raw_len));
+    && (0 != DecompressLzf(compress_buf, compress_len, raw_buf, raw_len));
   if (ret) {
     result->assign(raw_buf, raw_len);
   }
@@ -342,29 +350,29 @@ Status RdbParseImpl::LoadString(std::string *result) {
 }
 
 Status RdbParseImpl::LoadDouble(double *val) {
-   char buf[256];   
-   Status s = Read(1, nullptr, buf); 
-   if (!s.ok()) { return s; }
-   size_t len = static_cast<size_t>(buf[0]);
-   switch (len) {
-     case 255: 
-       *val = std::numeric_limits<double>::max(); 
-       break;
-     case 254:
-       *val = std::numeric_limits<double>::min();
-       break;
-     case 253:
-       *val = std::numeric_limits<double>::quiet_NaN();
-       break;
-     default: {
-       s = Read(static_cast<uint64_t>(len), nullptr, buf);
-       int ret = string2d(buf, len, val);
-       if (!ret) {
-         s = Status::Corruption("string2double failed");
-       }
-     }        
-   }
-   return Status::OK();
+  char buf[256];   
+  Status s = Read(1, nullptr, buf); 
+  if (!s.ok()) { return s; }
+  size_t len = static_cast<size_t>(buf[0]);
+  switch (len) {
+    case 255: 
+      *val = std::numeric_limits<double>::max(); 
+      break;
+    case 254:
+      *val = std::numeric_limits<double>::min();
+      break;
+    case 253:
+      *val = std::numeric_limits<double>::quiet_NaN();
+      break;
+    default: {
+               s = Read(static_cast<uint64_t>(len), nullptr, buf);
+               int ret = string2d(buf, len, val);
+               if (!ret) {
+                 s = Status::Corruption("string2double failed");
+               }
+             }        
+  }
+  return Status::OK();
 }
 Status RdbParseImpl::LoadBinaryDouble(double *val) {
   char *ptr = reinterpret_cast<char *>(val);
@@ -428,7 +436,7 @@ Status RdbParseImpl::LoadEntryValue(uint8_t type) {
     case kRdbListZiplist: 
       s = LoadListZiplist(&(result_->list_value));
       break;
-    case kRdbHashZipMap:
+    case kRdbHashZipmap:
       s = LoadZipmap(&(result_->map_value));
       break;
     case kRdbZsetZiplist:               
@@ -553,6 +561,7 @@ Status RdbParseImpl::Next() {
       continue; 
     }
     if (type == kEof) {
+      valid_ = false;
       return Status::OK(); 
     }
 
@@ -565,14 +574,15 @@ Status RdbParseImpl::Next() {
 } 
 
 std::string RdbParseImpl::GetTypeName(ValueType type) {
-  static std::unordered_map<ValueType, std::string, std::hash<int>> type_map{
+  static std::unordered_map<ValueType, std::string, std::hash<int>> type_map {
     { kRdbString, "string"}, { kRdbList, "list"},
-      { kRdbSet, "set"}, { kRdbHashZipMap,"hash"},
-      { kRdbZsetZiplist, "zset"}, { kRdbHashZiplist, "hash"},
+      { kRdbSet, "set"}, { kRdbHashZipmap,"hash"},
+      { kRdbZset, "zset"}, { kRdbHashZiplist, "hash"},
       { kRdbListZiplist,"list"}, { kRdbIntset, "set"},
       { kRdbHash,"hash"}, { kRdbZsetZiplist,"zset"},
       { kRdbListQuicklist,"list"}, { kRdbStreamListpacks,"stream"},
       { kRdbModule,"module"}, { kRdbModule2,"module"},
+      { kRdbZset2, "zset"},
   };
   auto it = type_map.find(type);  
   return it != type_map.end() ? it->second : ""; 
@@ -589,8 +599,8 @@ Status RdbParse::Open(const std::string &path, RdbParse **rdb) {
   *rdb = impl;
   return Status::OK();
 }
-
 RdbParse::~RdbParse() {
 }
 
-}
+
+} // namespace parser

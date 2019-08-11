@@ -20,7 +20,7 @@ enum ValueType {
   kRdbZset2 = 5,
   kRdbModule = 6,
   kRdbModule2 = 7, 
-  kRdbHashZipMap = 9,    
+  kRdbHashZipmap = 9,    
   kRdbListZiplist = 10,     
   kRdbIntset = 11,
   kRdbZsetZiplist = 12,       

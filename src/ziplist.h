@@ -7,7 +7,7 @@
 namespace parser {
 
 enum ZiplistFlag {
-  kZiplistBegin = 254,
+  kZiplistBegin = 0xfe,
   kZiplistEnd = 0xff,
   kZipListStrMask = 0xc0,
   kZipListIntMask = 0x30                 

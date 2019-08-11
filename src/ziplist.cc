@@ -32,18 +32,18 @@ bool ZiplistParser::Ziplist::GetStr(size_t *offset, std::string *val) {
   uint32_t length = 0;
   if (enc == kStrEnc6B) {
     skip = 1;
-    length = static_cast<uint32_t>(p[0]) 
+    length = static_cast<uint8_t>(p[0]) 
       & static_cast<uint32_t>(~(kZipListStrMask)); 
   } else if (enc == kStrEnc14B) {
     skip = 2;
-    length = ((static_cast<uint32_t>(p[0]) & ~kZipListStrMask) << 8)
-      | static_cast<uint32_t>(p[1]);   
+    length = ((static_cast<uint8_t>(p[0]) & ~kZipListStrMask) << 8)
+      | static_cast<uint8_t>(p[1]);   
   } else if (enc == kStrEnc32B) {
     skip = 5;
-    length = (static_cast<uint32_t>(p[1]) << 24)
-      | (static_cast<uint32_t>(p[2]) << 16) 
-      | (static_cast<uint32_t>(p[3]) << 8)
-      | (static_cast<uint32_t>(p[4]));
+    length = (static_cast<uint8_t>(p[1]) << 24)
+      | (static_cast<uint8_t>(p[2]) << 16) 
+      | (static_cast<uint8_t>(p[3]) << 8)
+      | (static_cast<uint8_t>(p[4]));
   }
   p += skip;
   //p += (skip + length);  
