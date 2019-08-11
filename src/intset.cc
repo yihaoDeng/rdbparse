@@ -10,18 +10,18 @@ Status Intset::Get(size_t pos, int64_t *v) {
   }
   if (encoding == sizeof(int64_t)) {
     int64_t v64;
-    memcpy(&v64, (int64_t*)content + pos, sizeof(int64_t));
-    MayReverseMemory(&v64, sizeof(uint64_t));
+    int64_t *p = reinterpret_cast<int64_t *>(content) + pos;
+    memcpy(&v64, p, sizeof(int64_t));
     *v = v64;
   } else if (encoding == sizeof(int32_t)) {
     int32_t v32;
-    memcpy(&v32, (int32_t*)content + pos, sizeof(int32_t));
-    MayReverseMemory(&v32, sizeof(uint32_t));
+    int32_t *p = reinterpret_cast<int32_t *>(content) + pos;
+    memcpy(&v32, p, sizeof(int32_t));
     *v = v32;
   } else {
     int16_t v16;  
-    memcpy(&v16, (int16_t*)content + pos, sizeof(int16_t));
-    MayReverseMemory(&v16, sizeof(uint16_t));
+    int16_t *p = reinterpret_cast<int16_t *>(content) + pos;
+    memcpy(&v16, p, sizeof(int16_t));
     *v = v16;
   }
   return Status::OK();
