@@ -112,7 +112,7 @@ int string2d(const char *s, size_t slen, double *dval) {
 
 }
 void MayReverseMemory(void *p, size_t len) {
-  if (kLittleEndian) {
+  if (!kLittleEndian) {
     return;
   }
   if (len != sizeof(int16_t) && len != sizeof(int32_t) && len != sizeof(int64_t)) {

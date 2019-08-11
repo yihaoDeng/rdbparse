@@ -21,6 +21,7 @@ struct ParsedResult {
   uint32_t idle;
   uint32_t db_size;
   uint32_t expire_size;
+  uint32_t freq;
   AuxKV aux_field;
   int expire_time;
   void set_dbnum(uint32_t _db_num) {
@@ -37,6 +38,9 @@ struct ParsedResult {
   }
   void set_expiretime(int _expire_time) {
     expire_time = _expire_time;
+  }
+  void set_freq(uint32_t _freq) {
+    freq = _freq;
   }
   void set_auxkv(const std::string &key, const std::string val) {
     aux_field.aux_val = key; 

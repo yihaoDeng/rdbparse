@@ -144,7 +144,7 @@ Status RdbParseImpl::Read(uint64_t len, Slice *result, char *scratch) {
     return s;
   }
   if (version_ >= 5) {
-    const unsigned char *p1 = (const unsigned char *)scratch; 
+    uint8_t *p1 = reinterpret_cast<uint8_t *>(scratch); 
     check_sum_ = crc64(check_sum_, p1, len); 
   }
   return s;
@@ -176,14 +176,6 @@ Status RdbParseImpl::LoadEntryKey(std::string *result) {
   return LoadString(result); 
 }
 
-Status RdbParseImpl::LoadEntryDBNum(uint8_t *db_num) {
-  char buf[1];
-  Slice result;
-  Status s = Read(1, &result, buf); 
-  if (!s.ok()) { return s; } 
-  *db_num = static_cast<uint8_t>(buf[0]);
-  return s;
-}
 Status RdbParseImpl::LoadIntVal(uint32_t type, std::string *result) {
   char buf[8];
   Status s;
@@ -210,10 +202,10 @@ Status RdbParseImpl::LoadIntVal(uint32_t type, std::string *result) {
 
 Status RdbParseImpl::LoadEncLzf(std::string *result) {
   uint64_t raw_len, compress_len;    
-  if (LoadLength(&compress_len, NULL).ok()) {
+  if (!LoadLength(&compress_len, NULL).ok()) {
     return Status::Corruption("parse enclzf compress_len error");          
   }
-  if (LoadLength(&raw_len, NULL).ok()) {
+  if (!LoadLength(&raw_len, NULL).ok()) {
     return Status::Corruption("parse enclzf raw_len error");          
   }
 
@@ -389,33 +381,39 @@ Status RdbParseImpl::LoadLength(uint64_t *length, bool *is_encoded) {
     *length = kLenErr;
     return s; 
   }
-  uint32_t len;
-  uint8_t type = (buf[0] & 0xc0) >> 6; 
+  uint8_t type = (static_cast<uint8_t>(buf[0]) & 0xc0) >> 6;
   if (type == k6B) {
-    len = buf[0] & 0x3f;
+    *length = buf[0] & 0x3f;
   } else if (type == k14B) {
     s = Read(1, nullptr, buf + 1); 
-    if (!s.ok()) { return s; }
-    len = ((buf[0] && 0x3f) << 8) | buf[1];   
-  } else if (type == k32B) {
-    s = Read(4, nullptr, buf); 
-    if (!s.ok()) { return s; }
-    memcpy(&len, buf, 4);  
-    len = ntohl(len);
-  } else if (type == k64B) {
-    s = Read(8, nullptr, buf); 
-    if (!s.ok()) { return s; }
-    memcpy(&len, buf, 8);  
-    MayReverseMemory(static_cast<void *>(&len), sizeof(uint64_t));
+    if (!s.ok()) { 
+      return s; 
+    }
+    *length = ((static_cast<uint8_t>(buf[0]) & 0x3f) << 8) | (static_cast<uint8_t>(buf[1]) & 0xff);   
   } else if (type == kEncv){
     if (is_encoded) { 
       *is_encoded = true; 
     }   
-    len = buf[0] & 0x3f;
-  } else {
-    return Status::Corruption("parse File");
+    *length = buf[0] & 0x3f;
+  } 
+  uint8_t flag = static_cast<uint8_t>(buf[0]);
+  if (flag == k32B) {
+    uint32_t l;
+    s = Read(4, nullptr, buf); 
+    if (!s.ok()) { 
+      return s; 
+    }
+    memcpy(&l, buf, 4);  
+    MayReverseMemory(static_cast<void *>(&l), sizeof(uint32_t));
+    *length = static_cast<uint64_t>(l);
+  } else if (flag == k64B) {
+    s = Read(8, nullptr, buf); 
+    if (!s.ok()) { 
+      return s; 
+    }
+    memcpy(length, buf, 8);  
+    MayReverseMemory(static_cast<void *>(length), 8);
   }
-  *length = len;
   return s;
 }
 Status RdbParseImpl::LoadEntryValue(uint8_t type) {
@@ -491,21 +489,9 @@ Status RdbParseImpl::Next() {
   while (1) {
     uint8_t type;
     if (!LoadEntryType(&type).ok()) {
-        return Status::Corruption("parse type error");
+      return Status::Corruption("parse type error");
     }
-    if (type == kEof) {
-      valid_ = false;
-      return Status::OK(); 
-    }
-    if (type == kSelectDb) {
-      uint64_t select_db;
-      if (!LoadLength(&(select_db), NULL).ok()) {
-        return Status::Corruption("parse selectdb db_num error");
-      }
-      result_->set_dbnum(static_cast<uint32_t>(select_db));
-      continue;
-    } 
-
+    // set expire time
     if (type == kExpireMs || type == kExpireSec) {
       int expire_time;
       if (!LoadExpiretime(type, &expire_time).ok()) {
@@ -516,9 +502,10 @@ Status RdbParseImpl::Next() {
         return Status::Corruption("parse type errror");
       }
     }  
+
     if (type == kIdle) {
       uint64_t idle;
-      if (LoadLength(&idle, NULL).ok()) {
+      if (!LoadLength(&idle, NULL).ok()) {
         return Status::Corruption("parse idle error");
       };
       result_->set_idle(static_cast<uint32_t>(idle));
@@ -526,9 +513,31 @@ Status RdbParseImpl::Next() {
         return Status::Corruption("parse type error");
       }
     }
-    if (type == kModuleAux) {
-      //TODO(dengyihao): add module
-      continue; 
+    if (type == kFreq) {
+      uint64_t freq; 
+      if (!LoadLength(&freq, NULL).ok()) {
+        return Status::Corruption("parse idle error");
+      };
+      result_->set_freq(static_cast<uint32_t>(freq));
+      if (!LoadEntryType(&type).ok()) {
+        return Status::Corruption("parse type error");
+      }
+    }
+    if (type == kSelectDb) {
+      uint64_t select_db;
+      if (!LoadLength(&(select_db), NULL).ok()) {
+        return Status::Corruption("parse selectdb db_num error");
+      }
+      result_->set_dbnum(static_cast<uint32_t>(select_db));
+      continue;
+    } 
+    if (type == kAux) {
+      std::string k, v;
+      if (!LoadString(&k).ok() || !LoadString(&v).ok()) {
+        return Status::Corruption("parse aux kv error");
+      } 
+      result_->set_auxkv(k, v); 
+      continue;
     }
     if (type == kResizedb) {
       uint64_t db_size, expire_size;
@@ -539,14 +548,14 @@ Status RdbParseImpl::Next() {
       result_->set_expiresize(static_cast<uint32_t>(expire_size));
       continue; 
     }
-    if (type == kAux) {
-      std::string k, v;
-      if (!LoadString(&k).ok() || !LoadString(&v).ok()) {
-        return Status::Corruption("parse aux kv error");
-      } 
-      result_->set_auxkv(k, v); 
-      continue;
+    if (type == kModuleAux) {
+      //TODO(dengyihao): add module
+      continue; 
     }
+    if (type == kEof) {
+      return Status::OK(); 
+    }
+
     s = LoadEntryKey(&(result_->key));        
     if (!s.ok()) { return s; } 
     result_->type = GetTypeName(ValueType(type));
