@@ -106,7 +106,7 @@ LIBRARY = $(LIBOUTPUT)/${LIBNAME}.a
 
 .PHONY: clean dbg static_lib all example
 
-all: $(LIBRARY)
+all: $(LIBRARY) example
 
 static_lib: $(LIBRARY)
 

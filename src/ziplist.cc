@@ -89,7 +89,7 @@ bool ZiplistParser::Ziplist::GetInt(size_t *offset, int64_t *val) {
     int8_t v8;
     v8 = static_cast<int8_t>(enc) & 0x0f;
     *val = static_cast<int64_t>(v8);
-  }
+  } 
   *offset = p - entrys; 
   return true;
 }

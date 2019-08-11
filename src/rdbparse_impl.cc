@@ -364,13 +364,14 @@ Status RdbParseImpl::LoadDouble(double *val) {
     case 253:
       *val = std::numeric_limits<double>::quiet_NaN();
       break;
-    default: {
-               s = Read(static_cast<uint64_t>(len), nullptr, buf);
-               int ret = string2d(buf, len, val);
-               if (!ret) {
-                 s = Status::Corruption("string2double failed");
-               }
-             }        
+    default: 
+      {
+        s = Read(static_cast<uint64_t>(len), nullptr, buf);
+        int ret = string2d(buf, len, val);
+        if (!ret) {
+          s = Status::Corruption("string2double failed");
+        }
+      }        
   }
   return Status::OK();
 }
