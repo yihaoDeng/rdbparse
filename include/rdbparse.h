@@ -23,6 +23,25 @@ struct ParsedResult {
   uint32_t expire_size;
   AuxKV aux_field;
   int expire_time;
+  void set_dbnum(uint32_t _db_num) {
+    db_num = _db_num;
+  } 
+  void set_idle(uint32_t _idle) {
+    idle = _idle;
+  }
+  void set_dbsize(uint32_t _db_size) {
+    db_size = _db_size;
+  }
+  void set_expiresize(uint32_t _exire_size) {
+    expire_size = _exire_size;
+  }
+  void set_expiretime(int _expire_time) {
+    expire_time = _expire_time;
+  }
+  void set_auxkv(const std::string &key, const std::string val) {
+    aux_field.aux_val = key; 
+    aux_field.aux_val = val;
+  }
   std::string key;
   std::string kv_value;
   std::set<std::string> set_value;

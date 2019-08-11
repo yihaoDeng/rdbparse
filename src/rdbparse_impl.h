@@ -48,9 +48,10 @@ class RdbParseImpl : public RdbParse {
     enum LengthType {
       k6B = 0,   
       k14B,
-      k32B,
-      kEncv,
-      kLenErr = UINT32_MAX
+      k32B = 0x80,
+      k64B = 0x81,
+      kEncv = 3,
+      kLenErr = std::numeric_limits<uint64_t>::max() 
     };
     enum ModuleType {
       kModuleEof = 0, 
@@ -82,7 +83,7 @@ class RdbParseImpl : public RdbParse {
 
     std::string GetTypeName(ValueType type);
   private: 
-    Status LoadFieldLen(uint32_t *length, bool *is_encoded);
+    Status LoadLength(uint64_t *length, bool *is_encoded);
     Status LoadIntVal(uint32_t type, std::string *result); 
     Status LoadString(std::string *result);
     Status LoadDouble(double *val);

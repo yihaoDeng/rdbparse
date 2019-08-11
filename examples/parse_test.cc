@@ -20,7 +20,7 @@ int main(int argc, char* argv[]) {
   while (parse->Valid()) {
     s = parse->Next(); 
     if (!s.ok()) {
-      std::cout << s.ToString() << std::endl;
+      std::cout << "Failed:" << s.ToString() << std::endl;
       break;
     }
     ParsedResult *value = parse->Value();         
