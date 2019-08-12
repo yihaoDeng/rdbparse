@@ -319,6 +319,81 @@ Status RdbParseImpl::LoadListQuicklist(std::list<std::string> *result) {
   }
   return i == field_size ? Status::OK() : Status::Corruption("parse Corruption");
 }
+
+Status RdbParseImpl::SkipModule() {
+  uint64_t id;
+  if (!LoadLength(&id, NULL).ok()) {
+    return Status::Corruption("parse module id error");
+  }
+  if (!LoadLength(&id, NULL).ok()) {
+    return Status::Corruption("parse module opera id error");
+  }
+  while (id != kModuleEof) {
+    if (id == kModuleSint || id == kModuleUint) {
+      uint64_t len;
+      if (!LoadLength(&len, NULL).ok()) {
+        return Status::Corruption("parse module data int/uint error");
+      } 
+    } else if (id == kModuleFloat) {
+      if (!SkipFloat().ok()) {
+        return Status::Corruption("parse module data float error");
+      }  
+    } else if (id == kModuleDouble) {
+      if (!SkipBinaryDouble().ok()) {
+        return Status::Corruption("parse module data double error");
+      } 
+    } else if (id == kModuleString) {
+      if (!SkipString().ok()) {
+        return Status::Corruption("parse module data string error");
+      }
+    }
+    if (!LoadLength(&id, NULL).ok()) {
+      return Status::Corruption("parse module opera id error");
+    }
+  }
+  return Status::OK();
+}
+Status RdbParseImpl::SkipStream() {
+  uint64_t len; 
+  const std::string err_msg = "skip stream error";
+  if (!LoadLength(&len, NULL).ok()) {
+    return Status::Corruption(err_msg);
+  }
+  for (uint64_t i = 0; i < len; i++) {
+    if (!SkipString().ok() || !SkipString().ok()) {
+      return Status::Corruption(err_msg);
+    }
+  }
+  for (uint64_t i = 0; i < 4; i++) {
+    if (!LoadLength(&len, NULL).ok()) {
+      return Status::Corruption(err_msg);
+    }
+  }
+  uint64_t cgroups = len;
+  for (uint64_t i = 0; i < cgroups; i++) {
+     uint64_t pends, consumers;;
+     SkipString();  
+     LoadLength(&pends, NULL);
+     LoadLength(&pends, NULL);
+     LoadLength(&pends, NULL);
+     for (uint64_t j = 0; j < pends; j++) {
+       uint64_t length;
+       sequence_file_->Skip(16);
+       sequence_file_->Skip(8);
+       LoadLength(&length, NULL);
+     }
+     LoadLength(&consumers, NULL);
+     for (uint64_t j = 0; j < consumers; j++) {
+        uint64_t skip_blocks; 
+        SkipString(); 
+        sequence_file_->Skip(8);
+        LoadLength(&skip_blocks, NULL);
+        sequence_file_->Skip(skip_blocks * 16);
+     }
+  }
+  return Status::OK();
+
+} 
 Status RdbParseImpl::LoadString(std::string *result) {
   uint64_t len;
   bool is_encoded = false;
@@ -344,9 +419,11 @@ Status RdbParseImpl::LoadString(std::string *result) {
 }
 
 Status RdbParseImpl::LoadDouble(double *val) {
-  char buf[256];   
-  Status s = Read(1, nullptr, buf); 
-  if (!s.ok()) { return s; }
+  char buf[16];   
+  if (!Read(1, nullptr, buf).ok()) {
+    return Status::Corruption("parse load double length error"); 
+  }
+
   size_t len = static_cast<size_t>(buf[0]);
   switch (len) {
     case 255: 
@@ -360,10 +437,11 @@ Status RdbParseImpl::LoadDouble(double *val) {
       break;
     default: 
       {
-        s = Read(static_cast<uint64_t>(len), nullptr, buf);
-        int ret = string2d(buf, len, val);
-        if (!ret) {
-          s = Status::Corruption("string2double failed");
+        if (Read(static_cast<uint64_t>(len), nullptr, buf).ok()
+            && string2d(buf, len, val)) {
+          return Status::OK();
+        } else {
+          return Status::Corruption("string2double failed");
         }
       }        
   }
@@ -376,6 +454,41 @@ Status RdbParseImpl::LoadBinaryDouble(double *val) {
   MayReverseMemory(ptr, sizeof(*val));
   return Status::OK();
 }
+Status RdbParseImpl::SkipString() {
+  uint64_t len, skip_bytes;
+  bool is_encoded = false;
+  if (!LoadLength(&len, &is_encoded).ok()) {
+    return Status::Corruption("skip string error");
+  }
+  skip_bytes = len;
+  if (is_encoded) {
+    switch (len) {
+      case kEncInt8: 
+        skip_bytes = 1;
+        break;
+      case kEncInt16:
+        skip_bytes = 2;
+        break;
+      case kEncInt32:
+        skip_bytes = 4; 
+        break;
+      case kEncLzf:   
+        {
+          uint64_t cl, l;
+          if (!LoadLength(&cl, NULL).ok() 
+              || !LoadLength(&l, NULL).ok()) {
+            return Status::Corruption("skip string error");
+          }
+          skip_bytes = cl; 
+        }
+        break;
+      default:
+        return Status::Corruption("");
+    }  
+  }
+  return sequence_file_->Skip(skip_bytes);
+}
+
 
 Status RdbParseImpl::LoadLength(uint64_t *length, bool *is_encoded) {
   char buf[8];      
@@ -452,16 +565,18 @@ Status RdbParseImpl::LoadEntryValue(uint8_t type) {
       s = LoadZset(&(result_->zset_value), true); 
       break;
     case kRdbModule:
-      break;
+      s = Status::Corruption("parse key module error");
     case kRdbModule2: 
+      s = SkipModule();
       break;
     case kRdbStreamListpacks:
+      s = SkipStream();
       break;
     case kRdbListQuicklist:
       s = LoadListQuicklist(&(result_->list_value));
       break;
     default: 
-      return Status::OK(); // skip unrecognised value type
+      s = Status::OK(); // skip unrecognised value type
   }
   return s; 
 }
@@ -552,14 +667,16 @@ Status RdbParseImpl::Next() {
       continue; 
     }
     if (type == kModuleAux) {
-      //TODO(dengyihao): add module
+      if (!SkipModule().ok()) {
+        return Status::Corruption("parse module error");
+      }
       continue; 
     }
     if (type == kEof) {
       valid_ = false;
       return Status::OK(); 
     }
-
+    // load object
     s = LoadEntryKey(&(result_->key));        
     if (!s.ok()) { return s; } 
     result_->type = GetTypeName(ValueType(type));

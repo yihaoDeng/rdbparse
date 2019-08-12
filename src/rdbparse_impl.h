@@ -97,7 +97,41 @@ class RdbParseImpl : public RdbParse {
     Status LoadHash(std::map<std::string, std::string> *result);
     Status LoadZset(std::map<std::string, double> *result, bool is_zset2 = false);
     Status LoadListQuicklist(std::list<std::string> *result);
-
+    Status SkipModule();  // skip module   
+    Status LoadUint8(uint8_t *ch) {
+      char buf[1];
+      Status s = Read(1, NULL, buf);
+      if (!s.ok()) {
+        return s;
+      }
+      *ch = static_cast<uint8_t>(buf[0]);
+      return Status::OK();
+    } 
+    Status SkipStream();
+    Status SkipString(); 
+    Status SkipFloat() {
+      uint8_t skip_bytes = 0;
+      Status s = LoadUint8(&skip_bytes);
+      if(s.ok() && skip_bytes < 253) {
+        return sequence_file_->Skip(skip_bytes); 
+      }
+      return s;
+    }
+    Status SkipBinaryDouble() {
+      return sequence_file_->Skip(sizeof(double));
+    }
+    Status SkipDouble() {
+      char buf[16];   
+      if (!Read(1, nullptr, buf).ok()) {
+        return Status::Corruption("parse load double length error"); 
+      }
+      uint64_t skip_bytes = 0;
+      size_t len = static_cast<size_t>(buf[0]);
+      if (len != 255 || len != 254 || len != 253) {
+          skip_bytes = len; 
+      } 
+      return sequence_file_->Skip(skip_bytes);
+    }
     std::string path_;
     SequentialFile *sequence_file_;  
     uint64_t check_sum_; 
