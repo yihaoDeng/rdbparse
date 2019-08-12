@@ -31,8 +31,7 @@ void ParsedResult::Debug() {
         printf(", ");
       }
     }
-    printf("]\n");
-  } else if (this->type == "list") {
+    printf("]\n"); } else if (this->type == "list") {
     printf("value: [\n");  
     auto& list_value = this->list_value; 
     for (auto it = list_value.begin(); it != list_value.end();) {
@@ -191,11 +190,13 @@ Status RdbParseImpl::LoadIntVal(uint32_t type, std::string *result) {
   if (type == kEncInt8) {
     s = Read(1, nullptr, buf);
     if (!s.ok()) { return s; }
-    val = static_cast<uint8_t>(buf[0]);  
+    int8_t t = static_cast<int8_t>(buf[0]);  
+    val = t;
   } else if (type == kEncInt16) {
     s = Read(2, nullptr, buf);
     if (!s.ok()) { return s; }
-    val = static_cast<uint8_t>(buf[0]) | (static_cast<uint8_t>(buf[1]) << 8);
+    uint16_t t = static_cast<uint8_t>(buf[0]) | (static_cast<uint8_t>(buf[1]) << 8);
+    val = static_cast<int16_t>(t);
   } else if (type == kEncInt32) {
     s = Read(4, nullptr, buf);
     if (!s.ok()) { return s; }
@@ -371,24 +372,35 @@ Status RdbParseImpl::SkipStream() {
   }
   uint64_t cgroups = len;
   for (uint64_t i = 0; i < cgroups; i++) {
-     uint64_t pends, consumers;;
-     SkipString();  
-     LoadLength(&pends, NULL);
-     LoadLength(&pends, NULL);
-     LoadLength(&pends, NULL);
+     uint64_t pends, consumers;
+     if (!SkipString().ok()) {
+        return Status::Corruption(err_msg); 
+     } 
+
+     // skip, donnot care value
+     for (uint64_t i = 0; i < 3; i++) {
+       if (!(LoadLength(&pends, NULL).ok())) {
+         return Status::Corruption(err_msg);
+       }
+     }
      for (uint64_t j = 0; j < pends; j++) {
        uint64_t length;
-       sequence_file_->Skip(16);
-       sequence_file_->Skip(8);
-       LoadLength(&length, NULL);
+       if (!sequence_file_->Skip(16 + 8).ok()
+           || !LoadLength(&length, NULL).ok()) {
+          return Status::Corruption(err_msg);
+       }
      }
-     LoadLength(&consumers, NULL);
+     if (!LoadLength(&consumers, NULL).ok()) {
+        return Status::Corruption(err_msg); 
+     }
      for (uint64_t j = 0; j < consumers; j++) {
-        uint64_t skip_blocks; 
-        SkipString(); 
-        sequence_file_->Skip(8);
-        LoadLength(&skip_blocks, NULL);
-        sequence_file_->Skip(skip_blocks * 16);
+       uint64_t skip_blocks; 
+       if (!SkipString().ok() 
+           || !sequence_file_->Skip(8).ok()
+           || !LoadLength(&skip_blocks, NULL).ok()
+           || !sequence_file_->Skip(skip_blocks * 16).ok()) {
+          return Status::Corruption(err_msg);
+       }
      }
   }
   return Status::OK();
