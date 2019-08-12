@@ -188,18 +188,20 @@ Status RdbParseImpl::LoadIntVal(uint32_t type, std::string *result) {
   Status s;
   int32_t val;
   if (type == kEncInt8) {
-    s = Read(1, nullptr, buf);
-    if (!s.ok()) { return s; }
-    int8_t t = static_cast<int8_t>(buf[0]);  
-    val = t;
+    if (!Read(1, nullptr, buf).ok()) {
+      return Status::Corruption("parse int val err");
+    }
+    val = static_cast<int8_t>(buf[0]);  
   } else if (type == kEncInt16) {
-    s = Read(2, nullptr, buf);
-    if (!s.ok()) { return s; }
+    if (!Read(2, nullptr, buf).ok()) { 
+      return Status::Corruption("parse int val err");
+    }
     uint16_t t = static_cast<uint8_t>(buf[0]) | (static_cast<uint8_t>(buf[1]) << 8);
     val = static_cast<int16_t>(t);
   } else if (type == kEncInt32) {
-    s = Read(4, nullptr, buf);
-    if (!s.ok()) { return s; }
+    if (Read(4, nullptr, buf).ok()) {
+      return Status::Corruption("parse int val err");
+    }
     val = static_cast<uint8_t>(buf[0]) | (static_cast<uint8_t>(buf[1]) << 8) 
       | (static_cast<uint8_t>(buf[2]) << 16) | (static_cast<uint8_t>(buf[3]) << 24);
   } else {

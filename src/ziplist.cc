@@ -46,7 +46,6 @@ bool ZiplistParser::Ziplist::GetStr(size_t *offset, std::string *val) {
       | (static_cast<uint8_t>(p[4]));
   }
   p += skip;
-  //p += (skip + length);  
   val->assign(p, length);   
    
   *offset = p - entrys + length; 
