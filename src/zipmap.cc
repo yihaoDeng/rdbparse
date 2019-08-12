@@ -46,7 +46,6 @@ uint32_t ZipmapParser::Zipmap::GetEntryStrLen(uint8_t len_size, char *entry) {
     str_len = static_cast<uint32_t>(entry[0]);
   } else if (len_size == 5) {
     memcpy(&str_len, entry + 1, 4); 
-    MayReverseMemory(&str_len, sizeof(uint32_t));
   }
   return str_len; 
 }

@@ -191,16 +191,16 @@ Status RdbParseImpl::LoadIntVal(uint32_t type, std::string *result) {
   if (type == kEncInt8) {
     s = Read(1, nullptr, buf);
     if (!s.ok()) { return s; }
-    val = static_cast<int8_t>(buf[0]);  
+    val = static_cast<uint8_t>(buf[0]);  
   } else if (type == kEncInt16) {
     s = Read(2, nullptr, buf);
     if (!s.ok()) { return s; }
-    val = static_cast<int8_t>(buf[0]) | (static_cast<int8_t>(buf[1]) << 8);
+    val = static_cast<uint8_t>(buf[0]) | (static_cast<uint8_t>(buf[1]) << 8);
   } else if (type == kEncInt32) {
     s = Read(4, nullptr, buf);
     if (!s.ok()) { return s; }
-    val = static_cast<int8_t>(buf[0]) | (static_cast<int8_t>(buf[1]) << 8) 
-      | (static_cast<int8_t>(buf[2]) << 16) | (static_cast<int8_t>(buf[3]) << 24);
+    val = static_cast<uint8_t>(buf[0]) | (static_cast<uint8_t>(buf[1]) << 8) 
+      | (static_cast<uint8_t>(buf[2]) << 16) | (static_cast<uint8_t>(buf[3]) << 24);
   } else {
     return Status::Corruption("no supported type");
   }
@@ -301,15 +301,9 @@ Status RdbParseImpl::LoadZset(std::map<std::string, double> *result, bool zset2)
     if (!LoadString(&key).ok()) {
       break;
     }
-    if (zset2) {
-      if (!LoadBinaryDouble(&val).ok()) {
-        break; 
-      } 
-    } else {
-      if (!LoadDouble(&val).ok()) {
-        break;
-      }
-    }
+    s = zset2 ? LoadBinaryDouble(&val) : LoadDouble(&val);
+    if (!s.ok()) { break; }
+
     result->insert({key, val});
   }
   return i == field_size ? Status::OK() : Status::Corruption("Parse error");
@@ -392,7 +386,7 @@ Status RdbParseImpl::LoadLength(uint64_t *length, bool *is_encoded) {
   }
   uint8_t type = (static_cast<uint8_t>(buf[0]) & 0xc0) >> 6;
   if (type == k6B) {
-    *length = buf[0] & 0x3f;
+    *length = static_cast<uint8_t>(buf[0]) & 0x3f;
   } else if (type == k14B) {
     s = Read(1, nullptr, buf + 1); 
     if (!s.ok()) { 
@@ -413,7 +407,7 @@ Status RdbParseImpl::LoadLength(uint64_t *length, bool *is_encoded) {
       return s; 
     }
     memcpy(&l, buf, 4);  
-    MayReverseMemory(static_cast<void *>(&l), sizeof(uint32_t));
+    MayReverseMemory(static_cast<void *>(&l), 4);
     *length = static_cast<uint64_t>(l);
   } else if (flag == k64B) {
     s = Read(8, nullptr, buf); 
@@ -477,9 +471,9 @@ Status RdbParseImpl::LoadIntset(std::set<std::string> *result) {
     return Status::Corruption("Parse intset error");
   }
 
-  size_t i = 0;
+  size_t i;
   Intset *int_set = reinterpret_cast<Intset *>((void *)(value.data())); 
-  for (; i < int_set->length; i++) {
+  for (i = 0; i < int_set->length; i++) {
     int64_t v64;
     if (!int_set->Get(i, &v64).ok()) {
       break; 

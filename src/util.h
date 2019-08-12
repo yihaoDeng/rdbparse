@@ -77,6 +77,7 @@ class SequentialFile {
     std::string filename_;
     FILE *file_;
 };
+
 Status NewSequentialFile(const std::string& fname, SequentialFile** result);
 int string2ll(const char *s, size_t slen, long long *value);
 int string2l(const char *s, size_t slen, long *lval); 

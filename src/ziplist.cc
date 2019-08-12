@@ -58,38 +58,37 @@ bool ZiplistParser::Ziplist::GetInt(size_t *offset, int64_t *val) {
   p++;
   if (enc == kIntEnc16) {
     int16_t v16;
-    memcpy(&v16, p, sizeof(int16_t));
-    MayReverseMemory(&v16, sizeof(int16_t));
+    memcpy(&v16, p, 2);
     *val = static_cast<int64_t>(v16); 
-    p += sizeof(int16_t);
+    p += 2;
   } else if (enc == kIntEnc32) {
     int32_t v32;
-    memcpy(&v32, p, sizeof(int32_t));
-    MayReverseMemory(&v32, sizeof(int32_t));
+    memcpy(&v32, p, 4);
     *val = v32; 
-    p += sizeof(int32_t);
+    p += 4;
   } else if (enc == kIntEnc64) {
     int64_t v64;
-    memcpy(&v64, p, sizeof(int64_t));
-    MayReverseMemory(&v64, sizeof(int64_t));
+    memcpy(&v64, p, 8);
     *val = v64; 
-    p += sizeof(int64_t);
+    p += 8;
   } else if (enc == kIntEnc24) {
+    char buf[4] = {0};
+    memcpy(buf + 1, p, 3); 
     int32_t v32;
-    memcpy(&v32, p, 3);
-    MayReverseMemory(&v32, sizeof(int32_t));
-    *val = static_cast<int64_t>(v32); 
+    memcpy(&v32, buf, 4);
+    *val = static_cast<int64_t>(v32 >> 8); 
     p += 3;
   } else if (enc == kIntEnc8) {
     int8_t v8; 
-    memcpy(&v8, p, sizeof(int8_t));
+    memcpy(&v8, p, 1);
     *val = static_cast<int64_t>(v8);
-    p += sizeof(int8_t);
-  } else if ((enc & kIntOther) == kIntOther){
-    int8_t v8;
-    v8 = static_cast<int8_t>(enc) & 0x0f;
+    p += 1;
+  } else if (enc >= 241 && enc <= 253){
+    int8_t v8 = static_cast<uint8_t>(enc) - 241; 
     *val = static_cast<int64_t>(v8);
-  } 
+  } else {
+    return false;
+  }
   *offset = p - entrys; 
   return true;
 }
