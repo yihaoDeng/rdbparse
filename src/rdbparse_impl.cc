@@ -130,8 +130,8 @@ Status RdbParseImpl::Init() {
 
   char buf[16];
   Slice result;
-  s = Read(9, &result, buf);  
-  if (!s.ok() || !result.starts_with(kMagicString)) {
+  if (!Read(9, &result, buf).ok() 
+      || !result.starts_with(kMagicString)) {
     return Status::Incomplete("unsupport rdb head magic");
   }
   result.remove_prefix(kMagicString.size());  
@@ -246,7 +246,7 @@ void RdbParseImpl::ResetResult() {
 }
 Status RdbParseImpl::LoadListZiplist(std::list<std::string> *value) {
   std::string buf;
-  if (!LoadString.ok()) {
+  if (!LoadString().ok()) {
     return Status::Corruption("parse list ziplist err");
   }
   ZiplistParser ziplist_parser((void *)(buf.c_str()));  
