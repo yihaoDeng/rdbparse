@@ -246,7 +246,7 @@ void RdbParseImpl::ResetResult() {
 }
 Status RdbParseImpl::LoadListZiplist(std::list<std::string> *value) {
   std::string buf;
-  if (!LoadString().ok()) {
+  if (!LoadString(&buf).ok()) {
     return Status::Corruption("parse list ziplist err");
   }
   ZiplistParser ziplist_parser((void *)(buf.c_str()));  
